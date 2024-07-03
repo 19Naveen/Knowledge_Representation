@@ -34,11 +34,29 @@ and complexities.
 easily interact with it and understand the generated insights
 
 
+## How to run the project:
+1. Clone the repository
+
+2. Install the required libraries using the following command:
+
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3. Run the following command to start the application:
+
+    ```bash
+    streamlit run Main.py
+    ```
+
+4. The application will open in the default browser and you can start using it.
+
+---
 
 ### **Made by Bit Bandits**
 ### Members:
-1. Naveenkumar D - [GitHub Profile](https://github.com/19Naveen)
-2. Siranjeevi K - [GitHub Profile](https://github.com/SiranjeeviK)
-3. Mithun Raaj S
-4. Pathmesh G
-5. Ponnarasu A
+1. [Naveenkumar D](https://github.com/19Naveen)
+2. [Siranjeevi K](https://github.com/SiranjeeviK)
+3. [Mithun Raaj S](https://github.com/Mithuncris)
+4. [Pathmesh G](https://github.com/Pathmesh)
+5. [Ponnarasu A](https://github.com/ponnarasua)
