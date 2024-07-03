@@ -4,11 +4,11 @@ import pandas as pd
 import os
 import re
 
-import Tools
+API_KEY = 'Get Your API KEY From https://aistudio.google.com/app/apikey '
 
-ORIGINAL_PATH = 'C:\\Users\\Naveen\\Desktop\\DS_Project\\IntelProject\\Data\\CSV\\'
-VISUALIZE_PATH = 'C:\\Users\\Naveen\\Desktop\\DS_Project\\IntelProject\\Data\\Visualized_Charts\\'
-PATH = 'C:\\Users\\Naveen\\Desktop\\DS_Project\\IntelProject\\Data\\Processed_Data\\'
+ORIGINAL_PATH = '/workspaces/Knowledge_Representation/Data/CSV/'
+VISUALIZE_PATH = '/workspaces/Knowledge_Representation/Data/Visualized_Charts/'
+PATH = '/workspaces/Knowledge_Representation/Data/Processed_Data/'
 
 
 def load_csv_files(directory_path):
@@ -31,7 +31,7 @@ def fetch_columns(csv):
 
 
 def get_statistical_details():
-    df = pd.read_csv("C:\\Users\\Naveen\\Desktop\\DS_Project\\IntelProject\\Data\\Processed_Data\\Output.csv")
+    df = pd.read_csv("/workspaces/Knowledge_Representation/Data/Processed_Data/Output.csv")
     df = df.describe()
     return df.to_string()
 
@@ -66,3 +66,13 @@ def save_file(uploadedfile, path):
 
     return 1
 
+
+def make_folders():
+    if not os.path.exists(ORIGINAL_PATH):
+        os.makedirs(ORIGINAL_PATH)
+    
+    if not os.path.exists(PATH):
+        os.makedirs(PATH)
+
+    if not os.path.exists(VISUALIZE_PATH):
+        os.makedirs(VISUALIZE_PATH)

@@ -1,9 +1,8 @@
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
-
 import Tools
 
-GOOGLE_PALM_API_KEY = 'AIzaSyCe-7cr2qgoxBS5LyVa_-fd2Fngh4Xwv2U'
+GOOGLE_PALM_API_KEY = Tools.API_KEY
 llm = ChatGoogleGenerativeAI(
     google_api_key=GOOGLE_PALM_API_KEY,
     model="gemini-pro",

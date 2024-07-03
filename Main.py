@@ -1,6 +1,5 @@
 import streamlit as st
 import KnowRep
-import Model
 import Tools
 import Processing
 import os
@@ -16,7 +15,7 @@ st.sidebar.subheader("Instructions")
 st.sidebar.markdown("1. Upload a CSV file.")
 st.sidebar.markdown("2. Click 'Generate Insights' to process the data and generate insights.")
 uploaded_file = st.sidebar.file_uploader("Upload a CSV file", type="csv")
-
+Tools.make_folders()
 # Main area
 if uploaded_file is not None:
     with st.spinner("Saving uploaded file..."):
