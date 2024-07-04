@@ -8,7 +8,7 @@ import os
 # Streamlit UI
 st.title("Knowledge Representation on Structured Dataset")
 
-# Sidebar with options
+# Sidebar with options 
 st.sidebar.header("Menu")
 st.sidebar.markdown("---")
 st.sidebar.markdown("\n")
