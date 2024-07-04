@@ -4,7 +4,7 @@ import pandas as pd
 import os
 import re
 
-API_KEY = 'Get Your API KEY From https://aistudio.google.com/app/apikey '
+# 'Get Your API KEY From https://aistudio.google.com/app/apikey '
 
 ORIGINAL_PATH = '/workspaces/Knowledge_Representation/Data/CSV/'
 VISUALIZE_PATH = '/workspaces/Knowledge_Representation/Data/Visualized_Charts/'

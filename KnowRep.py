@@ -1,13 +1,18 @@
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 import Tools
+import Main
 
-GOOGLE_PALM_API_KEY = Tools.API_KEY
-llm = ChatGoogleGenerativeAI(
-    google_api_key=GOOGLE_PALM_API_KEY,
-    model="gemini-pro",
-    temperature=0.5
-)
+try:
+    GOOGLE_PALM_API_KEY = Main.API_KEY
+    llm = ChatGoogleGenerativeAI(
+        google_api_key=GOOGLE_PALM_API_KEY,
+        model="gemini-pro",
+        temperature=0.5
+    )
+except Exception as e:
+    print(f"Error generating insights: {e}")
+
 
 def get_target(csv):
     columns = Tools.fetch_columns(csv)
@@ -112,3 +117,7 @@ def generate_graph(csv):
     response = llm.invoke(query).content
 
     return Tools.Visual_rep(response)
+
+
+    def chat_with_csv(sample, user_question):
+        pass
