@@ -13,7 +13,6 @@ st.title("KNOWLEDGE REPRESENTATION ON STRUCTURED DATASET")
 st.markdown('---')
 
 # Sidebar with options
-
 API_KEY = st.sidebar.text_input("Enter your API Key", type="password")
 st.sidebar.subheader("SELECT FEATURES")
 selected_feature = st.sidebar.radio("Choose a feature:",
@@ -22,15 +21,23 @@ selected_feature = st.sidebar.radio("Choose a feature:",
 st.sidebar.markdown("---")
 uploaded_file = st.sidebar.file_uploader("UPLOAD A CSV FILE", type="csv")
 
-if selected_feature == "Insights Generation":
+Tools.make_folders()
+# Main area
+if uploaded_file is None:
+    st.subheader("INSTRUCTIONS")
+    st.markdown("You can get your Free API from https://aistudio.google.com/app/apikey")
+    st.markdown("1. Enter your API Key.")
+    st.markdown("2. Select a feature.")
+    st.markdown("3. Upload a CSV file.")
+    st.markdown("4. Click 'Process' to run the selected feature.")
+    st.markdown('---')
+elif selected_feature == "Insights Generation":
     st.subheader("Insights Generation")
     st.markdown('''This feature analyzes the uploaded CSV file to provide valuable insights about the data. 
                     It processes the dataset, generates descriptive statistics, identifies patterns, and creates  
                     visualizations. The output includes textual insights and charts that help users quickly understand 
                     key characteristics and trends in their data.''')
     st.markdown('---')
-
-
 elif selected_feature == "Chat with CSV":
     st.subheader("Chat with CSV")
     st.markdown('''This interactive feature allows users to ask questions about their CSV data in natural language."
@@ -45,15 +52,7 @@ else:
                 "other columns as features. This can be useful for forecasting, classification tasks, or identifying "
                 "influential factors in the dataset.")
     st.markdown('---')
-Tools.make_folders()
-# Main area
-if uploaded_file is None:
-    st.subheader("INSTRUCTIONS")
-    st.markdown("1. Enter your API Key.")
-    st.markdown("2. Select a feature.")
-    st.markdown("3. Upload a CSV file.")
-    st.markdown("4. Click 'Process' to run the selected feature.")
-    st.markdown('---')
+
 
 if uploaded_file is not None and API_KEY:
     with st.spinner("Saving uploaded file..."):
@@ -67,6 +66,7 @@ if uploaded_file is not None and API_KEY:
             st.error(f"Failed to upload file: {e}")
 
     if st.button("Process"):
+        KnowRep.make_llm(API_KEY)
         if selected_feature == "Insights Generation":
             with st.spinner("Generating Insights for Your Dataset..."):
                 try:

@@ -2,6 +2,7 @@ import pandas as pd
 import streamlit as st
 import Tools
 import KnowRep
+import Main
 
 
 def classification_model_selection(size):
@@ -93,11 +94,19 @@ def get_cluster_names(predictions):
 
 def get_input_predict(model, data_type, X, class_names=None, cluster_names=None):
     columns = list(X.columns)
-    st.write("Columns available for prediction:", columns)
+    st.write("Columns available for prediction:")
+    st.write(str(columns))
+    st.write("----")
 
-    input_data = dict()
-    for column in columns:
-        input_data[column] = st.text_input(f"Enter value for {column}:", key=column)
+    preds = st.text_input(f"Enter Prediction value seperated by commas(,):", key='columns')
+    preds = [i.strip() for i in preds.split(',')]
+    if len(preds) != len(columns):
+        raise Exception('Enter all the Values of the columns')
+    else:
+        input_data = dict()
+        for i in range(len(columns)):
+            input_data[columns[i]] = preds[i] 
+
 
     # Ensure all inputs are filled before proceeding
     all_inputs_provided = all(input_data[column] for column in columns)
@@ -140,6 +149,6 @@ def example_usage(df, data_type, target_column):
 
 def prediction_model(sample):
     data = Tools.pd_load_csv_files(Tools.PATH)
-    csv_type = "regression" # KnowRep.dataset_type(sample)
-    target = KnowRep.get_target(sample)
+    csv_type = "regression" # KnowRep.dataset_type(llm, sample)
+    target = KnowRep.get_target(Main.llm, sample)
     example_usage(data, csv_type, target)

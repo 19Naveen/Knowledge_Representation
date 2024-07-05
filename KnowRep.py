@@ -3,15 +3,19 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 import Tools
 import Main
 
-try:
-    GOOGLE_PALM_API_KEY = Main.API_KEY
-    llm = ChatGoogleGenerativeAI(
-        google_api_key=GOOGLE_PALM_API_KEY,
-        model="gemini-pro",
-        temperature=0.5
-    )
-except Exception as e:
-    print(f"Error generating insights: {e}")
+llm = None
+
+def make_llm(API_KEY):
+    try:
+        global llm
+        GOOGLE_PALM_API_KEY = API_KEY
+        llm = ChatGoogleGenerativeAI(
+            google_api_key=GOOGLE_PALM_API_KEY,
+            model="gemini-pro",
+            temperature=0.6
+        )
+    except Exception as e:
+        print(f"Error generating insights: {e}")
 
 
 def get_target(csv):
