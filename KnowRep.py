@@ -18,35 +18,45 @@ def make_llm(API_KEY):
         print(f"Error generating insights: {e}")
 
 
-def get_target(csv):
-    columns = Tools.fetch_columns(csv)
-    prompt = f'''
-        You are a top-tier Data Analyst renowned for extracting valuable insights from datasets. Given a dataset, determ            ine which column is the target/Label column. You can only return the name of the column.
-        Here is the dataset:{csv} and the columns: {columns}'''
-    query_template = PromptTemplate(template=prompt, input_variables=["csv", "columns"])
-    query = query_template.format(csv=csv, columns=columns)
+def dataset_type(sample_data):
+    columns = Tools.fetch_columns()
+    
+    prompt = '''
+        Given a dataset with the following columns:
+        {columns}
+        
+        Here are some sample records from the dataset:
+        {sample_data}
+        
+        Determine whether this dataset is best suited for classification, regression, or clustering. 
+        Return only one of these three options: classification, regression, or clustering.
+        '''  
+    query_template = PromptTemplate(template=prompt, input_variables=["columns", "sample_data"])
+    query = query_template.format(columns=columns, sample_data=sample_data)
     response = llm.invoke(query)
     return response.content
 
 
 def dataset_type(csv):
     prompt = '''
-        You are a top-tier Data Analyst renowned for extracting valuable insights from datasets. Given a dataset, determine whether it is best suited for classification, regression, or clustering. You can only return one of these three options: classification, regression, or clustering.
-        Here is the dataset:{dataset}'''
-    query_template = PromptTemplate(template=prompt, input_variables=["dataset"])
-    query = query_template.format(dataset=csv)
+        You are a top-tier Machine Learning Engineer who can say what model can be build from the given datasets. 
+        Given a dataset, determine whether it is best suited for classification, regression, or clustering. You can only return one of these three options: classification, regression, or clustering.
+        Here is the 
+        columns:{column}
+        dataset:{dataset}'''
+    query_template = PromptTemplate(template=prompt, input_variables=["dataset", "column"])
+    query = query_template.format(dataset=csv, column=Tools.fetch_columns())
     response = llm.invoke(query)
     return response.content
 
 
 def generate_insights(csv):
     try:
-        columns = Tools.fetch_columns(csv)
+        columns = Tools.fetch_columns()
         stat = Tools.get_statistical_details()
-
         prompt = '''
         As a top-tier Data Analyst specializing in extracting insights, your task is to analyze the provided structured dataset to identify key patterns and trends. 
-        The dataset at hand ({dataset}) contains the following columns: {Columns}. Please provide a comprehensive analysis including statistical details and actionable recommendations based on the following insights:
+        The dataset at hand ({dataset}) contains the following columns: {Columns} and its stats are {Stats}. Please provide a comprehensive analysis including statistical details and actionable recommendations based on the following insights:
         
         About the Dataset:
         - Explain the dataset and its features in brief
@@ -61,7 +71,6 @@ def generate_insights(csv):
 
         query_template = PromptTemplate(template=prompt, input_variables=["dataset", "Columns", "Stats"])
         query = query_template.format(dataset=csv, Columns=columns, Stats=stat)
-
         response = llm.invoke(query)
         return response.content
 
@@ -70,7 +79,7 @@ def generate_insights(csv):
 
 
 def generate_graph(csv):
-    columns = Tools.fetch_columns(csv)
+    columns = Tools.fetch_columns()
     stats = Tools.get_statistical_details()
 
     prompt = f'''
@@ -113,7 +122,7 @@ def generate_graph(csv):
            - Rationale: Box plots are useful for summarizing the distribution of a dataset.
            - Potential Insight: This chart can reveal the spread and outliers in the data for the numerical column.
 
-        (Continue for at least 5 visualizations)
+        IMPORTANT :(Continue for at least 3 visualizations)
         '''
 
     query_template = PromptTemplate(template=prompt, input_variables=["dataset", "Columns", "Stats"])

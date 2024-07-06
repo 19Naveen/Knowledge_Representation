@@ -8,7 +8,7 @@ from sklearn.impute import SimpleImputer
 
 def preprocess_dataset():
     try:
-        df = Tools.pd_load_csv_files(Tools.ORIGINAL_PATH)
+        df = Tools.load_csv_files(Tools.ORIGINAL_PATH, key='dataframe')
     except Exception as e:
         raise ValueError(f"Error loading dataset: {e}")
 
@@ -40,7 +40,7 @@ def preprocess_dataset():
         if df[col].dtype in ['int64', 'float64']:
             df = remove_outliers(df, col)
 
-    df = df.sample().reset_index(drop=True)
+    #df = df.sample().reset_index(drop=True)
     df.to_csv(f"{Tools.PATH}/Output.csv", index=False)
 
 

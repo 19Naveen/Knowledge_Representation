@@ -5,6 +5,10 @@ import Model
 import Processing
 import os
 
+# Initialize session state
+if 'api_key' not in st.session_state:
+    st.session_state.api_key = ''
+
 image_url = "https://static.vecteezy.com/system/resources/previews/010/794/341/non_2x/purple-artificial-intelligence-technology-circuit-file-free-png.png"
 st.sidebar.image(image_url, caption="", use_column_width=True)
 
@@ -13,7 +17,7 @@ st.title("KNOWLEDGE REPRESENTATION ON STRUCTURED DATASET")
 st.markdown('---')
 
 # Sidebar with options
-API_KEY = st.sidebar.text_input("Enter your API Key", type="password")
+st.session_state.api_key = st.sidebar.text_input("Enter your API Key", type="password", value=st.session_state.api_key)
 st.sidebar.subheader("SELECT FEATURES")
 selected_feature = st.sidebar.radio("Choose a feature:",
                                     ["Insights Generation", "Chat with CSV", "ML Prediction"])
@@ -22,6 +26,7 @@ st.sidebar.markdown("---")
 uploaded_file = st.sidebar.file_uploader("UPLOAD A CSV FILE", type="csv")
 
 Tools.make_folders()
+
 # Main area
 if uploaded_file is None:
     st.subheader("INSTRUCTIONS")
@@ -40,39 +45,40 @@ elif selected_feature == "Insights Generation":
     st.markdown('---')
 elif selected_feature == "Chat with CSV":
     st.subheader("Chat with CSV")
-    st.markdown('''This interactive feature allows users to ask questions about their CSV data in natural language."
-                " It uses the uploaded dataset to provide answers based on the content of the CSV file. "
-                "Users can inquire about specific data points, relationships between variables, or summary statistics, "
-                "making it easier to explore and understand their data without writing complex queries.''')
+    st.markdown('''This interactive feature allows users to ask questions about their CSV data in natural language. 
+                It uses the uploaded dataset to provide answers based on the content of the CSV file. 
+                Users can inquire about specific data points, relationships between variables, or summary statistics, 
+                making it easier to explore and understand their data without writing complex queries.''')
     st.markdown('---')
 else:
     st.subheader("ML Prediction")
-    st.markdown("This feature leverages machine learning algorithms to make predictions based on the uploaded CSV data."
-                "Users can select a target column, and the system will attempt to predict values for that column using "
-                "other columns as features. This can be useful for forecasting, classification tasks, or identifying "
-                "influential factors in the dataset.")
+    st.markdown('''This feature leverages machine learning algorithms to make predictions based on the uploaded CSV data. 
+                Users can select a target column, and the system will attempt to predict values for that column using 
+                other columns as features. This can be useful for forecasting, classification tasks, or identifying 
+                influential factors in the dataset.''')
     st.markdown('---')
 
-
-if uploaded_file is not None and API_KEY:
-    with st.spinner("Saving uploaded file..."):
-        try:
-            if Tools.save_file(uploaded_file, Tools.ORIGINAL_PATH) == 1:
-                st.success("File uploaded successfully!")
-                Processing.preprocess_dataset()
-            else:
-                raise Exception
-        except Exception as e:
-            st.error(f"Failed to upload file: {e}")
+if uploaded_file is not None and st.session_state.api_key:
+    if 'file_uploaded' not in st.session_state:
+        with st.spinner("Saving uploaded file..."):
+            try:
+                if Tools.save_file(uploaded_file, Tools.ORIGINAL_PATH) == 1:
+                    st.success("File uploaded successfully!")
+                    Processing.preprocess_dataset()
+                    st.session_state.file_uploaded = True
+                else:
+                    raise Exception("Failed to save file")
+            except Exception as e:
+                st.error(f"Failed to upload file: {e}")
 
     if st.button("Process"):
-        KnowRep.make_llm(API_KEY)
+        KnowRep.make_llm(st.session_state.api_key)
         if selected_feature == "Insights Generation":
             with st.spinner("Generating Insights for Your Dataset..."):
                 try:
-                    loaded_csv = Tools.load_csv_files(Tools.PATH)
-                    sample = loaded_csv[0]
+                    sample = Tools.load_csv_files(Tools.PATH, key='string')
                     insights = KnowRep.generate_insights(sample)
+                    print(sample)
                     st.subheader("Insights")
                     st.write(insights)
                 except Exception as e:
@@ -80,7 +86,7 @@ if uploaded_file is not None and API_KEY:
 
             with st.spinner("Generating and visualizing charts..."):
                 try:
-                    sample = '\n'.join(loaded_csv[:3])
+                    sample = Tools.load_csv_files(Tools.PATH, key='string')
                     charts = KnowRep.generate_graph(sample)
                     Processing.Visualize_charts(charts)
                     st.success("Charts Created successfully!")
@@ -112,16 +118,12 @@ if uploaded_file is not None and API_KEY:
                         st.error(f"Failed to process question: {e}")
 
         elif selected_feature == "ML Prediction":
-            st.subheader("ML Prediction")
-
-            with st.spinner("Generating ML prediction..."):
+            with st.spinner("Setting up ML prediction..."):
                 try:
                     loaded_csv = Tools.load_csv_files(Tools.PATH)
-                    sample = loaded_csv[0]
-                    prediction = Model.prediction_model(sample)
-                    st.write("Prediction Results:", prediction)
+                    Model.prediction_model(loaded_csv)
                 except Exception as e:
-                    st.error(f"Failed to generate prediction: {e}")
+                    st.error(f"Failed to set up ML prediction: {e}")
 
         with st.spinner("Cleaning up temporary files..."):
             try:

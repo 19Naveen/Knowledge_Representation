@@ -3,6 +3,7 @@ from langchain_community.document_loaders import DirectoryLoader
 import pandas as pd
 import os
 import re
+import chardet
 
 # 'Get Your API KEY From https://aistudio.google.com/app/apikey '
 
@@ -11,23 +12,30 @@ VISUALIZE_PATH = '/workspaces/Knowledge_Representation/Data/Visualized_Charts/'
 PATH = '/workspaces/Knowledge_Representation/Data/Processed_Data/'
 
 
-def load_csv_files(directory_path):
-    loader = DirectoryLoader(directory_path, glob="./*.csv", loader_cls=CSVLoader)
-    files = loader.load()
-    files = [row.page_content for row in files]
-    return files
-
-
-def pd_load_csv_files(directory_path):
+def load_csv_files(directory_path, key='string'):
     files = os.listdir(directory_path)
+    if not files:
+        raise ValueError("No files found in the directory")
     path = os.path.join(directory_path, files[0])
-    files = pd.read_csv(path)
-    return files
+    encoding = detect_encoding(path)
+    df = pd.read_csv(path, encoding=encoding)
+    #df = df.sample(n = (df.size/2)).reset_index(drop=True)
 
+    if key == 'dataframe':
+        return df
+    else:
+        sample_data = df.head().to_dict(orient='records')
+        output_str = ""
+        for i, record in enumerate(sample_data):
+            column_name = f"column{i+1}"
+            record_str = ", ".join([f"'{k}': {v}" for k, v in record.items()])
+            output_str += f"{column_name} = {{{record_str}}},\n"
+        return output_str
+    
 
-def fetch_columns(csv):
-    column_names = re.findall(r'(\w+):', csv)
-    return column_names
+def fetch_columns():
+    df = load_csv_files(PATH, key='dataframe')
+    return df.columns
 
 
 def get_statistical_details():
@@ -42,16 +50,6 @@ def Visual_rep(response):
     for i in pattern:
         charts.append(eval(i))
     return charts
-
-
-def delete_files():
-    Path = ''
-    for file in os.listdir(PATH):
-        os.remove(os.path.join(PATH, file))
-    for file in os.listdir(VISUALIZE_PATH):
-        os.remove(os.path.join(VISUALIZE_PATH, file))
-    for file in os.listdir(ORIGINAL_PATH):
-        os.remove(os.path.join(ORIGINAL_PATH, file))
 
 
 def save_file(uploadedfile, path):
@@ -76,3 +74,19 @@ def make_folders():
 
     if not os.path.exists(VISUALIZE_PATH):
         os.makedirs(VISUALIZE_PATH)
+
+
+def delete_files():
+    for file in os.listdir(PATH):
+        os.remove(os.path.join(PATH, file))
+    for file in os.listdir(VISUALIZE_PATH):
+        os.remove(os.path.join(VISUALIZE_PATH, file))
+    for file in os.listdir(ORIGINAL_PATH):
+        os.remove(os.path.join(ORIGINAL_PATH, file))
+
+
+def detect_encoding(file_path):
+    with open(file_path, 'rb') as f:
+        raw_data = f.read()
+    result = chardet.detect(raw_data)
+    return result['encoding']
