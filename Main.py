@@ -3,6 +3,7 @@ import KnowRep
 import Tools
 import Model
 import Processing
+import chat_with_csv
 import os
 
 # Set page config
@@ -111,12 +112,21 @@ with tab3:
                 you can inquire about specific data points, relationships between variables, or summary statistics, 
                 making it easier to explore and understand their data without writing complex queries.''')
     if st.session_state.file_uploaded:
-        if st.button("Start Chat", key="Chat csv", use_container_width=True):
-            user_question = None
-            user_question = st.text_input("Ask a question about your data:")
+        # if st.button("Start Chat", key="Chat csv", use_container_width=True):
+        user_question = None
+        user_question = st.text_input("Ask a question about your data:")
+        try:
             if user_question:
-                result = KnowRep.chat_with_csv(user_question)
-                st.write(result)
+                print(st.session_state)
+                chat_with_csv.initChat()
+            if user_question:
+                with st.spinner("Processing question..."):
+                    # loaded_csv = Tools.load_csv_files(Tools.PATH)
+                    # KnowRep.chat_with_csv(user_question, loaded_csv)
+                    chat_with_csv.handle_userinput(user_question)
+                    print("User Question: ", user_question)
+        except Exception as e:
+            st.error(f"Error: {e}")
     else:
         st.warning("Please upload and process a CSV file first.")
 
