@@ -148,7 +148,7 @@ def example_usage(df, data_type, target_column):
 
 
 def prediction_model(sample):
-    data = Tools.pd_load_csv_files(Tools.PATH)
+    data = Tools.load_csv_files(Tools.PATH, key='dataframe')
     csv_type = "regression" # KnowRep.dataset_type(llm, sample)
     target = KnowRep.get_target(Main.llm, sample)
     example_usage(data, csv_type, target)

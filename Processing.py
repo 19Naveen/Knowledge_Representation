@@ -5,8 +5,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.impute import SimpleImputer
 
-
 def preprocess_dataset():
+    """
+    Preprocess the dataset by handling missing values and removing outliers.
+    
+    Raises:
+        ValueError: If there's an error loading the dataset or if it's empty.
+    """
     try:
         df = Tools.load_csv_files(Tools.ORIGINAL_PATH, key='dataframe')
     except Exception as e:
@@ -17,7 +22,7 @@ def preprocess_dataset():
 
     for col in df.columns:
         if df[col].isnull().any():
-            if df[col].dtype in ['int64', 'float64']:
+            if pd.api.types.is_numeric_dtype(df[col]):
                 imputer = SimpleImputer(strategy='mean')
                 df[col] = imputer.fit_transform(df[[col]]).flatten()
             elif df[col].dtype == 'object':
@@ -26,91 +31,126 @@ def preprocess_dataset():
             else:
                 raise ValueError(f"Column {col} has unsupported data type {df[col].dtype} for imputation.")
 
-    def remove_outliers(df, col):
-        if df[col].dtype in ['int64', 'float64']:
-            Q1 = df[col].quantile(0.25)
-            Q3 = df[col].quantile(0.75)
-            IQR = Q3 - Q1
-            lower_bound = Q1 - 1.5 * IQR
-            upper_bound = Q3 + 1.5 * IQR
-            df = df[(df[col] >= lower_bound) & (df[col] <= upper_bound)]
-        return df
+    df = remove_outliers(df)
+    df.to_csv(os.path.join(Tools.PATH, "Output.csv"), index=False)
 
-    for col in df.columns:
-        if df[col].dtype in ['int64', 'float64']:
-            df = remove_outliers(df, col)
-
-    #df = df.sample().reset_index(drop=True)
-    df.to_csv(f"{Tools.PATH}/Output.csv", index=False)
-
+def remove_outliers(df):
+    """
+    Remove outliers from numerical columns using the IQR method.
+    
+    Args:
+        df (pd.DataFrame): Input DataFrame
+    
+    Returns:
+        pd.DataFrame: DataFrame with outliers removed
+    """
+    for col in df.select_dtypes(include=['int64', 'float64']).columns:
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        df = df[(df[col] >= lower_bound) & (df[col] <= upper_bound)]
+    return df
 
 def Visualize_charts(charts):
-    df = Tools.pd_load_csv_files(Tools.ORIGINAL_PATH)
-    df = df.loc[:25]
+    """
+    Create and save various types of charts based on the input specifications using Seaborn.
+    
+    Args:
+        charts (list): List of dictionaries containing chart specifications
+    """
+    df = Tools.load_csv_files(Tools.ORIGINAL_PATH, key='dataframe')
     save_path = '/workspaces/Knowledge_Representation/Data/Visualized_Charts'
+    os.makedirs(save_path, exist_ok=True)
+    
+    sns.set_theme(style="whitegrid", palette="deep", font="sans-serif")
+    plt.rcParams['font.size'] = 12
+    plt.rcParams['axes.titlesize'] = 16
+    plt.rcParams['axes.labelsize'] = 14
     
     for chart in charts:
-        x_col, y_col, chart_type = chart[0], chart[1], chart[2]
+        x_col, y_col, chart_type = chart['x_axis'], chart['y_axis'], chart['chart_type']
 
-        if df[x_col].dtype == 'object' or (y_col and df[y_col].dtype == 'object'):
+        if x_col not in df.columns or (y_col and y_col not in df.columns):
+            print(f"Column(s) not found in the dataframe. Skipping.")
             continue
 
-        if chart_type == 'Scatter Plot' and y_col:
-            plt.scatter(df[x_col], df[y_col])
-            plt.xlabel(x_col)
-            plt.ylabel(y_col)
-            plt.title(f"Scatter Plot: {x_col} vs {y_col}")
-            plt.savefig(f"{save_path}/scatter_plot_{x_col}_{y_col}.png")
 
-        elif chart_type == 'Bar Chart':
-            labels = df[x_col].value_counts().index
-            sizes = df[x_col].value_counts().values
-            plt.bar(labels, sizes)
-            plt.xlabel(x_col)
-            plt.ylabel('Counts')
-            plt.title(f"Bar Chart: {x_col}")
-            plt.savefig(f"{save_path}/bar_chart_{x_col}.png")
+        try:
+            sample_size = min(1000, len(df))
+            df_sample = df.sample(n=sample_size, random_state=42)
 
-        elif chart_type == 'Histogram':
-            plt.hist(df[x_col], bins=30, color='blue', alpha=0.7)
-            plt.xlabel(x_col)
-            plt.ylabel('Frequency')
-            plt.title(f"Histogram: {x_col}")
-            plt.savefig(f"{save_path}/histogram_{x_col}.png")
+            if chart_type == 'Scatter Plot' and y_col:
+                plt.figure(figsize=(12, 8))
+                sns.scatterplot(data=df_sample, x=x_col, y=y_col, alpha=0.6)
+                plt.title(f"Scatter Plot: {x_col} vs {y_col}")
+            elif chart_type == 'Bar Chart':
+                plt.figure(figsize=(12, 8))
+                if df[x_col].dtype == 'object':
+                    data = df[x_col].value_counts().nlargest(20)
+                    sns.barplot(x=data.index, y=data.values)
+                    plt.ylabel('Count')
+                elif y_col:
+                    data = df.groupby(x_col)[y_col].mean().nlargest(20)
+                    sns.barplot(x=data.index, y=data.values)
+                    plt.ylabel(f'Mean {y_col}')
+                else:
+                    sns.histplot(df[x_col], kde=True)
+                    plt.ylabel('Frequency')
+                plt.xlabel(x_col)
+                plt.title(f"Bar Chart: {x_col}")
+                plt.xticks(rotation=45, ha='right')
+            elif chart_type == 'Histogram':
+                plt.figure(figsize=(12, 8))
+                sns.histplot(df_sample[x_col], kde=True)
+                plt.xlabel(x_col)
+                plt.ylabel('Frequency')
+                plt.title(f"Histogram: {x_col}")
+            elif chart_type == 'Pie Chart':
+                plt.figure(figsize=(12, 8))
+                if df[x_col].dtype == 'object':
+                    data = df[x_col].value_counts().nlargest(10)
+                    plt.pie(data.values, labels=data.index, autopct='%1.1f%%', startangle=90)
+                    plt.title(f"Pie Chart: Top 10 categories of {x_col}")
+                else:
+                    print(f"Pie Chart not suitable for numerical data: {x_col}. Skipping.")
+            elif chart_type == 'Box Plot':
+                plt.figure(figsize=(12, 8))
+                sns.boxplot(x=df_sample[x_col])
+                plt.xlabel(x_col)
+                plt.title(f"Box Plot: {x_col}")
+            elif chart_type == 'Heatmap' and y_col:
+                plt.figure(figsize=(12, 8))
+                if df[x_col].dtype == 'object' and df[y_col].dtype == 'object':
+                    pivot_table = pd.crosstab(df[x_col], df[y_col])
+                    sns.heatmap(pivot_table, annot=True, fmt="d", cmap="YlGnBu")
+                    plt.title(f"Heatmap: {x_col} vs {y_col}")
+                else:
+                    print(f"Heatmap requires two categorical variables. Skipping {x_col} vs {y_col}.")
+            elif chart_type in ['Area Chart', 'Line Chart'] and y_col:
+                plt.figure(figsize=(12, 8))
+                if pd.api.types.is_numeric_dtype(df[x_col]) and pd.api.types.is_numeric_dtype(df[y_col]):
+                    df_sorted = df_sample.sort_values(by=x_col)
+                    if chart_type == 'Area Chart':
+                        sns.lineplot(data=df_sorted, x=x_col, y=y_col)
+                        plt.fill_between(df_sorted[x_col], df_sorted[y_col], alpha=0.3)
+                    else:  # Line Chart
+                        sns.lineplot(data=df_sorted, x=x_col, y=y_col)
+                    plt.xlabel(x_col)
+                    plt.ylabel(y_col)
+                    plt.title(f"{chart_type}: {x_col} vs {y_col}")
+                else:
+                    print(f"{chart_type} requires numerical data for both axes. Skipping {x_col} vs {y_col}.")
+            else:
+                print(f"Unknown or unsupported chart type: {chart_type}. Skipping.")
+                continue
 
-        elif chart_type == 'Pie Chart':
-            labels = df[x_col].value_counts().index
-            sizes = df[x_col].value_counts().values
-            plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
-            plt.axis('equal')
-            plt.title(f"Pie Chart: {x_col}")
-            plt.savefig(f"{save_path}/pie_chart_{x_col}.png")
+            plt.tight_layout()
+            plt.savefig(os.path.join(save_path, f"{chart_type.lower().replace(' ', '_')}_{x_col}_{y_col if y_col else ''}.png"))
+            plt.close()
 
-        elif chart_type == 'Box Plot':
-            sns.boxplot(x=df[x_col])
-            plt.xlabel(x_col)
-            plt.title(f"Box Plot: {x_col}")
-            plt.savefig(f"{save_path}/box_plot_{x_col}.png")
+        except Exception as e:
+            print(f"Error creating chart for {chart_type} with {x_col} and {y_col}: {str(e)}")
 
-        elif chart_type == 'Heatmap' and y_col:
-            data = df.pivot_table(index=x_col, columns=y_col, aggfunc='size', fill_value=0)
-            sns.heatmap(data, annot=True, fmt="d")
-            plt.title(f"Heatmap: {x_col} vs {y_col}")
-            plt.savefig(f"{save_path}/heatmap_{x_col}_{y_col}.png")
-
-        elif chart_type == 'Area Chart' and y_col:
-            df.plot.area(x=x_col, y=y_col, alpha=0.4)
-            plt.xlabel(x_col)
-            plt.ylabel(y_col)
-            plt.title(f"Area Chart: {x_col} vs {y_col}")
-            plt.savefig(f"{save_path}/area_chart_{x_col}_{y_col}.png")
-
-        elif chart_type == 'Line Chart' and y_col:
-            plt.plot(df[x_col], df[y_col])
-            plt.xlabel(x_col)
-            plt.ylabel(y_col)
-            plt.title(f"Line Chart: {x_col} vs {y_col}")
-            plt.savefig(f"{save_path}/line_chart_{x_col}_{y_col}.png")
-
-        else:
-            print(f"Unknown or unsupported chart type: {chart_type}. Skipping {x_col} vs {y_col}.")
+    print(f"Charts have been saved to {save_path}")
