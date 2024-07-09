@@ -137,13 +137,10 @@ def example_usage(df, data_type, target_column):
             st.write("Predictions:", named_predictions)
 
 def prediction_model(sample):
-<<<<<<< HEAD
     data = Tools.load_csv_files(Tools.PATH, key='dataframe')
     csv_type = "regression" # KnowRep.dataset_type(llm, sample)
-    target = KnowRep.get_target(Main.llm, sample)
-=======
+    target = KnowRep.get_target(sample)
     data = Tools.pd_load_csv_files(Tools.PATH)
     csv_type = KnowRep.dataset_type(sample)  
     target = KnowRep.get_target(sample)
->>>>>>> refs/remotes/origin/Master
     example_usage(data, csv_type, target)

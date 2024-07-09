@@ -21,6 +21,7 @@ if 'api_key' not in st.session_state:
     st.session_state.api_key = ''
 if 'file_uploaded' not in st.session_state:
     st.session_state.file_uploaded = False
+Tools.make_folders()
 
 # Sidebar
 with st.sidebar:

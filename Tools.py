@@ -74,6 +74,8 @@ def get_dtype():
     return df.dtypes.apply(lambda x: x.name).to_dict()
 
 
+import re
+
 def extract_visualization_info(response_content):
     """
     Extract visualization information from a response string.
@@ -84,12 +86,25 @@ def extract_visualization_info(response_content):
     Returns:
         List of dictionaries with visualization info.
     """
-    pattern = r'\d+\.\s*\[([^,]+),\s*([^,\]]+)?,?\s*([^\]]+)\]'
-    matches = re.findall(pattern, response_content)
+
+    insight_pattern = r'Potential Insight: [\w .]+'
+    insights = re.findall(insight_pattern, response_content)
+
+    columns_pattern = r'\d+\.\s*\[([^,]+),\s*([^,\]]*)?,?\s*([^\]]+)\]'
+    columns = re.findall(columns_pattern, response_content)
+ 
+    result = []
+    for i in range(len(columns)):
+        column = columns[i]
+        info = {
+            'x_axis': column[0].strip(),
+            'y_axis': column[1].strip() if column[1] and column[1].strip().lower() != 'none' else None,
+            'chart_type': column[2].strip(),
+            'info': insights[i] if i < len(insights) else None  # Handle case where there are more columns than insights
+        }
+        result.append(info)
     
-    return [{'x_axis': match[0].strip(),
-             'y_axis': match[1].strip() if match[1] and match[1].strip().lower() != 'none' else None,
-             'chart_type': match[2].strip()} for match in matches]
+    return result
 
 
 def save_file(uploadedfile, path):

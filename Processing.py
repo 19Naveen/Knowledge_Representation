@@ -79,7 +79,10 @@ def Visualize_charts(charts):
 
         try:
             sample_size = min(1000, len(df))
-            df_sample = df.sample(n=sample_size, random_state=42)
+            if chart_type == 'Scatter Plot':
+                df_sample = df.sample(n=50, random_state=42)
+            else:
+                df_sample = df.sample(n=sample_size, random_state=42)
 
             if chart_type == 'Scatter Plot' and y_col:
                 plt.figure(figsize=(12, 8))
@@ -121,19 +124,29 @@ def Visualize_charts(charts):
                 plt.xlabel(x_col)
                 plt.title(f"Box Plot: {x_col}")
             elif chart_type == 'Heatmap' and y_col:
-                plt.figure(figsize=(12, 8))
                 if df[x_col].dtype == 'object' and df[y_col].dtype == 'object':
                     pivot_table = pd.crosstab(df[x_col], df[y_col])
+                    if pivot_table.empty:
+                        print("Pivot table is empty. Skipping heatmap.")
+                        continue
+                
                     sns.heatmap(pivot_table, annot=True, fmt="d", cmap="YlGnBu")
                     plt.title(f"Heatmap: {x_col} vs {y_col}")
+                    plt.xlabel(x_col)
+                    plt.ylabel(y_col)
+                elif pd.api.types.is_numeric_dtype(df[x_col]) and pd.api.types.is_numeric_dtype(df[y_col]):
+                    correlation = df[[x_col, y_col]].corr()
+                    sns.heatmap(correlation, annot=True, cmap="YlGnBu")
+                    plt.title(f"Correlation Heatmap: {x_col} vs {y_col}")
                 else:
-                    print(f"Heatmap requires two categorical variables. Skipping {x_col} vs {y_col}.")
+                    print(f"Heatmap requires two categorical variables or two numeric variables. Skipping {x_col} vs {y_col}.")
+                    continue
             elif chart_type in ['Area Chart', 'Line Chart'] and y_col:
                 plt.figure(figsize=(12, 8))
                 if pd.api.types.is_numeric_dtype(df[x_col]) and pd.api.types.is_numeric_dtype(df[y_col]):
                     df_sorted = df_sample.sort_values(by=x_col)
                     if chart_type == 'Area Chart':
-                        sns.lineplot(data=df_sorted, x=x_col, y=y_col)
+                        sns.stackplot(data=df_sorted, x=x_col, y=y_col)
                         plt.fill_between(df_sorted[x_col], df_sorted[y_col], alpha=0.3)
                     else:  # Line Chart
                         sns.lineplot(data=df_sorted, x=x_col, y=y_col)
@@ -145,11 +158,9 @@ def Visualize_charts(charts):
             else:
                 print(f"Unknown or unsupported chart type: {chart_type}. Skipping.")
                 continue
-
             plt.tight_layout()
             plt.savefig(os.path.join(save_path, f"{chart_type.lower().replace(' ', '_')}_{x_col}_{y_col if y_col else ''}.png"))
             plt.close()
-
         except Exception as e:
             print(f"Error creating chart for {chart_type} with {x_col} and {y_col}: {str(e)}")
 
