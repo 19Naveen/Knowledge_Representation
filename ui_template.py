@@ -14,8 +14,8 @@ CSS ='''
     }
 
     .chat-message .avatar img {
-        max-width: 78px;
-        max-height: 78px;
+        max-width: 38px;
+        max-height: 38px;
         border-radius: 50%;
         object-fit: contain;
     }

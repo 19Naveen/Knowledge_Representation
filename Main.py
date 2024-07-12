@@ -28,7 +28,7 @@ Tools.make_folders()
 with st.sidebar:
     st.image("https://static.vecteezy.com/system/resources/previews/010/794/341/non_2x/purple-artificial-intelligence-technology-circuit-file-free-png.png", width=200)
     st.title("KnowRep")
-    
+    st.write(st.session_state)
     st.session_state.api_key = st.text_input("Enter your API Key", type="password", value=st.session_state.api_key)
     uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
     
@@ -115,18 +115,18 @@ with tab3:
         # if st.button("Start Chat", key="Chat csv", use_container_width=True):
         user_question = None
         user_question = st.text_input("Ask a question about your data:")
-        try:
-            if user_question:
-                print(st.session_state)
-                chat_with_csv.initChat()
-            if user_question:
-                with st.spinner("Processing question..."):
-                    # loaded_csv = Tools.load_csv_files(Tools.PATH)
-                    # KnowRep.chat_with_csv(user_question, loaded_csv)
-                    chat_with_csv.handle_userinput(user_question)
-                    print("User Question: ", user_question)
-        except Exception as e:
-            st.error(f"Error: {e}")
+        # try:
+        if user_question:
+            print(st.session_state)
+            chat_with_csv.initChat()
+        if user_question:
+            with st.spinner("Processing question..."):
+                # loaded_csv = Tools.load_csv_files(Tools.PATH)
+                # KnowRep.chat_with_csv(user_question, loaded_csv)
+                chat_with_csv.handle_userinput(user_question)
+                print("User Question: ", user_question)
+        # except Exception as e:
+        #     st.error(f"Error: {e}")
     else:
         st.warning("Please upload and process a CSV file first.")
 
