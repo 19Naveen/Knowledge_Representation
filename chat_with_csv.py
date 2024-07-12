@@ -1,155 +1,47 @@
-from cmath import inf
-from langchain_core.tools import tool
-import streamlit as st
-import ui_template as ui
 from langchain.memory import ConversationBufferMemory
 from langchain.chains.llm import LLMChain
 from langchain.agents import AgentExecutor, ZeroShotAgent
-from langchain_community.utilities import SQLDatabase
-from sqlalchemy import create_engine, text
-import Tools
-from operator import itemgetter
-
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnablePassthrough
-
-from langchain.chains import create_sql_query_chain
-
-from langchain_community.tools.sql_database.tool import QuerySQLDataBaseTool
-
-
-
-def get_engine():
-    engine = None
-    if st.session_state.engine is None:
-        df = Tools.load_csv_files(Tools.PATH, key='dataframe')
-        st.session_state.df = df
-        print("\n")
-        print(df.head())
-        print("\n")
-        # setting columns as session state
-        st.session_state.columns = list(df.columns)
-        engine = create_engine("sqlite:///db.db")
-
-        # delete the database if it exists
-        connection = engine.connect()
-        connection.execute(text('DROP TABLE IF EXISTS db'))
-        # drop all tables in the database
-        connection.execute(text('DROP TABLE IF EXISTS db'))
-
-        df.to_sql("db", engine, index=False)
-        
-        st.session_state.engine = engine
-    else:
-        engine = st.session_state.engine
-    return engine
-
-def remove_markdown_code_block(sql_code):
-    """
-    Removes the Markdown code block formatting from a SQL code string.
-    """
-    # Check if the string starts with ```sql and ends with ```
-    if sql_code.startswith("```sql") and sql_code.endswith("```"):
-        # Remove the first 5 characters (```sql) and the last 3 characters (```)
-        return sql_code[6:-3].strip()
-    
-    print("SQL Code: ", sql_code)
-    return sql_code
-
-@tool
-def database_tool(query: str):
-    """Use this to perform SELECT queries to get information from the database that has a table 'db' containing the user's uploaded data."""    
-    db = SQLDatabase(engine=get_engine())
-    execute_query = QuerySQLDataBaseTool(db=db,verbose=True,handle_tool_error=True)
-    write_query = create_sql_query_chain(st.session_state.llm, db,k=inf)
-    
-    answer_prompt = PromptTemplate.from_template(
-        """Given the following user question, corresponding SQL query, and SQL result, answer the user question.
-
-            Question: {question}
-            SQL Query: {query}
-            SQL Result: {result}
-            Answer: """
-    )
-
-    chain = (
-        RunnablePassthrough.assign(query=write_query|remove_markdown_code_block).assign(
-            result=itemgetter("query") | execute_query
-        )
-        | answer_prompt
-        | st.session_state.llm
-        | StrOutputParser()
-    )
-    
-    return chain.invoke({"question": query})
-
-@tool
-def describe_dataset(query: str):
-    """Use this to describe the dataset, provide basic statistics, or answer questions about the structure of the data without performing SQL queries."""
-    df = st.session_state.df
-    
-    if "describe" in query.lower() or "statistics" in query.lower():
-        description = df.describe().to_string()
-        return f"Here's a statistical description of the numerical columns in the dataset:\n{description}"
-    
-    elif "columns" in query.lower() or "fields" in query.lower():
-        columns = ", ".join(df.columns)
-        return f"The dataset contains the following columns: {columns}"
-    
-    elif "shape" in query.lower() or "size" in query.lower():
-        rows, cols = df.shape
-        return f"The dataset has {rows} rows and {cols} columns."
-    
-    elif "sample" in query.lower():
-        sample = df.head().to_string()
-        return f"Here's a sample of the first few rows of the dataset:\n{sample}"
-    
-    else:
-        return "I'm sorry, I couldn't understand your request about the dataset. Could you please be more specific? You can ask about the dataset's description, statistics, columns, shape, or a sample of the data."
-
+import streamlit as st
+import ui_template as ui
+from agent_tools import get_sqlite_engine, describe_dataset, database_tool,pretty_print_result
 
 def get_tools():
+    """
+    Returns a list of tools.
 
+    Returns:
+        list: A list of tools.
+    """
     tools = [
         describe_dataset,
         database_tool,
+        pretty_print_result
     ]
 
     return tools
 
 def get_memory():
+    """
+    Retrieves the conversation buffer memory.
+
+    Returns:
+        ConversationBufferMemory: The conversation buffer memory object.
+    """
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
     return memory
 
 
-def get_conversation_chain(agent, tools, memory):
-
-    agent_executor = AgentExecutor.from_agent_and_tools(
-        agent=agent,
-        tools=tools,
-        verbose=True,
-        memory = memory,
-        )
-    print("Agent Executor ready")
-    return agent_executor
-
-
-
-# each time user inputs a question, this function will be called
-def handle_userinput(user_question):
-    response = st.session_state.conversation.run(user_question)
-    st.session_state.chat_history.append({"role": "human", "content": user_question})
-    st.session_state.chat_history.append({"role": "ai", "content": response})
-
-    for message in st.session_state.chat_history:
-        if message["role"] == "human":
-            st.write(ui.user_template.replace('{{MSG}}', message["content"]), unsafe_allow_html=True)
-        else:
-            st.write(ui.bot_template.replace('{{MSG}}', message["content"]), unsafe_allow_html=True)
-
-
 def get_agent(tools):
+    """
+    Creates and returns an AI agent that helps users analyze CSV data.
+
+    Args:
+        tools (list): A list of tools available to the agent.
+
+    Returns:
+        agent (ZeroShotAgent): The AI agent that can analyze CSV data.
+
+    """
     prefix = """You are an AI assistant that helps users analyze CSV data. 
     You have access to a database containing the user's uploaded CSV data in a table named 'db'.
     Use the database_tool to query this data and answer the user's questions.
@@ -178,9 +70,51 @@ def get_agent(tools):
 
     return agent
 
+def get_conversation_chain(agent, tools, memory):
+    """
+    Retrieves the conversation chain for the given agent, tools, and memory.
 
-# this will be called first called from the Main.py
+    Args:
+        agent: The agent object representing the conversational agent.
+        tools: The tools object containing the necessary tools for the agent.
+        memory: The memory object representing the agent's memory.
+
+    Returns:
+        An instance of AgentExecutor initialized with the provided agent, tools, and memory.
+    """
+    agent_executor = AgentExecutor.from_agent_and_tools(
+        agent=agent,
+        tools=tools,
+        verbose=True,
+        memory=memory,
+        # handle_userinput=True
+        # handle errors
+        handle_parsing_errors=True,
+    )
+    print("Agent Executor ready")
+    return agent_executor
+
+
+# This will be called first called from the Main.py for "Chat with CSV" feature
 def initChat():
+    """
+    Initializes the chat application by setting up the necessary session state variables and objects.
+
+    This function performs the following tasks:
+    1. Sets up the CSS for the chat UI.
+    2. Checks if the 'conversation' session state variable exists and initializes it if not.
+    3. Checks if the 'chat_history' session state variable exists and initializes it if not.
+    4. Checks if the 'engine' session state variable exists and initializes it if not.
+    5. Checks if the 'df' session state variable exists and initializes it if not.
+    6. Retrieves the SQLite engine.
+    7. Retrieves the tools.
+    8. Retrieves the memory.
+    9. Retrieves the agent.
+    10. Sets the 'conversation' session state variable to the conversation chain.
+
+    Returns:
+        None
+    """
     st.write(ui.CSS, unsafe_allow_html=True)
     if 'conversation' not in st.session_state:
         st.session_state.conversation = None
@@ -191,11 +125,22 @@ def initChat():
     if 'df' not in st.session_state:
         st.session_state.df = None
 
-    engine = get_engine()
+    get_sqlite_engine()
     tools = get_tools()
     memory = get_memory()
     agent = get_agent(tools)
     
-
     st.session_state.conversation = get_conversation_chain(agent, tools, memory)
     
+
+# Each time user inputs a question, this function will be called
+def handle_userinput(user_question):
+    response = st.session_state.conversation.run(user_question)
+    st.session_state.chat_history.append({"role": "human", "content": user_question})
+    st.session_state.chat_history.append({"role": "ai", "content": response})
+
+    for message in st.session_state.chat_history:
+        if message["role"] == "human":
+            st.write(ui.user_template.replace('{{MSG}}', message["content"]), unsafe_allow_html=True)
+        else:
+            st.write(ui.bot_template.replace('{{MSG}}', message["content"]), unsafe_allow_html=True)
