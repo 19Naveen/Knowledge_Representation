@@ -4,11 +4,7 @@ import streamlit as st
 import ui_template as ui
 from langchain.memory import ConversationBufferMemory
 from langchain.chains.llm import LLMChain
-from langchain.agents import Tool, AgentExecutor, ZeroShotAgent, AgentOutputParser
-from langchain.prompts import BaseChatPromptTemplate
-from langchain.schema import AgentAction, AgentFinish, HumanMessage
-import re
-from typing import List, Union
+from langchain.agents import AgentExecutor, ZeroShotAgent
 from langchain_community.utilities import SQLDatabase
 from sqlalchemy import create_engine, text
 import Tools
@@ -34,7 +30,6 @@ def get_engine():
         print("\n")
         # setting columns as session state
         st.session_state.columns = list(df.columns)
-        # print("\n\nColumns: ", st.session_state.columns)
         engine = create_engine("sqlite:///db.db")
 
         # delete the database if it exists

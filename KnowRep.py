@@ -156,15 +156,3 @@ def generate_and_extract_charts(df):
     visualizations = Tools.extract_visualization_info(response.content)
     
     return visualizations
-
-def chat_with_csv(user_question):
-    """
-    Process user questions about the CSV data.
-    
-    Args:
-        user_question (str): The user's question
-    
-    Returns:
-        str: The user's question (placeholder for actual implementation)
-    """
-    return user_question
