@@ -1,4 +1,28 @@
+# This file contains a list of files and directories that should be ignored by Git.
+# It is used to specify intentionally untracked files that Git should ignore.
+# The patterns in this file are used to match against file and directory names.
+# Any file or directory matching these patterns will be ignored by Git.
+# 
+# The following patterns are specified in this .gitignore file:
+# 
+# .idea: Ignores the .idea directory, which is typically used by JetBrains IDEs.
+# .ipynb_checkpoints: Ignores the .ipynb_checkpoints directory, which is created by Jupyter Notebook.
+# .venv: Ignores the .venv directory, which is commonly used for virtual environments.
+# __pycache__/: Ignores the __pycache__ directory, which is created by Python's bytecode compiler.
+# .env: Ignores the .env file, which is often used to store environment variables.
+# db.db: Ignores the db.db file, which would be temporary database file.
+# Data/CSV/*: Ignores all files in the Data/CSV directory.
+# Data/Processed_Data/*: Ignores all files in the Data/Processed_Data directory.
+# Data/Visualized_Charts/*: Ignores all files in the Data/Visualized_Charts directory.
+
+
 .idea
 .ipynb_checkpoints
 .venv
 __pycache__/
+
+.env
+db.db
+Data/CSV/*
+Data/Processed_Data/*
+Data/Visualized_Charts/*
