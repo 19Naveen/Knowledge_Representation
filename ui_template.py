@@ -1,47 +1,67 @@
-CSS ='''
+CSS = '''
 <style>
+    .chat-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
     .chat-message {
-        padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; display: flex;
+        display: flex;
+        margin-bottom: 20px;
+        animation: fadeIn 0.5s;
     }
     .chat-message.user {
-        background-color: #2b313e;
-    }
-    .chat-message.bot {
-        background-color: #475063;
+        justify-content: flex-end;
     }
     .chat-message .avatar {
-        width: 15%;
-    }
-
-    .chat-message .avatar img {
-        max-width: 38px;
-        max-height: 38px;
+        width: 40px;
+        height: 40px;
         border-radius: 50%;
-        object-fit: contain;
+        overflow: hidden;
+        margin: 0 10px;
     }
-
+    .chat-message .avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
     .chat-message .message {
-        width: 85%;
-        padding: 0 1.5rem;
-        color: #fff;
+        max-width: 70%;
+        padding: 15px;
+        border-radius: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
-        '''
+    .chat-message.bot .message {
+        background-color: #f0f0f0;
+        color: #333;
+    }
+    .chat-message.user .message {
+        background-color: #007bff;
+        color: white;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+'''
 
-bot_template = '''
-
-<div class="chat-message bot">
-    <div class="avatar">
-        <img src="https://i.ibb.co/vvPvZcv/robot-croped.gif" alt="Bot">
+message_template = '''
+<div class="chat-container">
+    <div class="chat-message {role}">
+        <div class="avatar">
+            <img src="{avatar_url}" alt="{role}">
+        </div>
+        <div class="message">
+            {message}
+        </div>
     </div>
-    <div class="message">{{MSG}} </div>
 </div>
 '''
 
-user_template = '''
-<div class="chat-message user">
-    <div class="avatar">
-        <img src="https://i.ibb.co/c8s2Mmb/image.png" alt="User">
-    </div>
-    <div class="message">{{MSG}}</div>
-</div>
-'''
+def format_message(role, message):
+    avatar_url = "https://i.ibb.co/vvPvZcv/robot-croped.gif" if role == "bot" else "https://i.ibb.co/c8s2Mmb/image.png"
+    return message_template.format(role=role, avatar_url=avatar_url, message=message)
+
+bot_template = lambda message: format_message("bot", message)
+user_template = lambda message: format_message("user", message)

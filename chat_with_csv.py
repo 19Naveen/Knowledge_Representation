@@ -3,7 +3,7 @@ from langchain.chains.llm import LLMChain
 from langchain.agents import AgentExecutor, ZeroShotAgent
 import streamlit as st
 import ui_template as ui
-from agent_tools import get_sqlite_engine, describe_dataset, database_tool,pretty_print_result
+from agent_tools import get_sqlite_engine, describe_dataset, database_tool,pretty_print_result, handle_unexpected_query
 
 def get_tools():
     """
@@ -15,7 +15,8 @@ def get_tools():
     tools = [
         describe_dataset,
         database_tool,
-        pretty_print_result
+        pretty_print_result,
+        handle_unexpected_query
     ]
 
     return tools
@@ -46,6 +47,9 @@ def get_agent(tools):
     You have access to a database containing the user's uploaded CSV data in a table named 'db'.
     Use the database_tool to query this data and answer the user's questions.
     Always use SQL SELECT queries to retrieve information.
+    
+    IMPORTANT: When you receive results from the database_tool, use that information to answer the user's question.
+    Do not claim you don't have access to the information if the database_tool returns results.
 
     If you don't know the answer or can't find the information in the database, simply say so.
     """
@@ -64,7 +68,7 @@ def get_agent(tools):
         input_variables=["input", "chat_history", "agent_scratchpad"]
     )
 
-    llm_chain = LLMChain(llm=st.session_state.llm, prompt=prompt, verbose=True)
+    llm_chain = LLMChain(llm=st.session_state.strict_llm, prompt=prompt, verbose=True)
     
     agent = ZeroShotAgent(llm_chain=llm_chain, tools=tools, verbose=True)
 
@@ -124,6 +128,12 @@ def initChat():
         st.session_state.engine = None
     if 'df' not in st.session_state:
         st.session_state.df = None
+    if 'columns' not in st.session_state:
+        st.session_state.columns = []
+    if 'llm' not in st.session_state:
+        st.session_state.llm = None
+    if 'strict_llm' not in st.session_state:
+        st.session_state.strict_llm = None
 
     get_sqlite_engine()
     tools = get_tools()
@@ -141,6 +151,6 @@ def handle_userinput(user_question):
 
     for message in st.session_state.chat_history:
         if message["role"] == "human":
-            st.write(ui.user_template.replace('{{MSG}}', message["content"]), unsafe_allow_html=True)
+            st.write(ui.user_template(message["content"]), unsafe_allow_html=True)
         else:
-            st.write(ui.bot_template.replace('{{MSG}}', message["content"]), unsafe_allow_html=True)
+            st.write(ui.bot_template(message["content"]), unsafe_allow_html=True)

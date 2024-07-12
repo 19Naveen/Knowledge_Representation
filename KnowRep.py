@@ -9,6 +9,7 @@ import seaborn as sns
 from sklearn.impute import SimpleImputer
 
 llm = None
+strict_llm = None
 
 def make_llm(API_KEY):
     """
@@ -24,6 +25,12 @@ def make_llm(API_KEY):
             google_api_key=GOOGLE_PALM_API_KEY,
             model="gemini-pro",
             temperature=0.5
+        )
+        global strict_llm
+        st.session_state.strict_llm = ChatGoogleGenerativeAI(
+            google_api_key=GOOGLE_PALM_API_KEY,
+            model="gemini-pro",
+            temperature=0.8
         )
     except Exception as e:
         print(f"Error initializing LLM: {e}")

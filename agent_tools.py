@@ -72,27 +72,29 @@ def pretty_print_result(user_question:str, result: str = ''):
     Formats the result of a SQL query for display in the chatbot.
 
     Parameters:
+        user_question (str): The original user question.
         result (str, optional): The result of the SQL query. Defaults to an empty string.
 
     Returns:
         str: The formatted result of the SQL query.
     """
     
-    llm = st.session_state.llm
+    strict_llm = st.session_state.strict_llm
     result = result.strip()
     prompt = PromptTemplate.from_template(
         """You are an expert that can reformate the SQL result to make it more readable for the user.
         Given the following user question and SQL result, reformat the SQL result to make it more readable for the user. If the SQL result is already in a readable format, you can simply copy it as is.
+        Ensure that your response directly answers the user's question using the information from the SQL result.
 
         User Question: {user_question}
         SQL Result: {result}
 
-        Reformatted SQL Result:
+        Reformatted Answer:
 
         """
     )
     chain = (
-        RunnablePassthrough.assign(user_question=user_question).assign(result=result) | prompt | llm | StrOutputParser()
+        RunnablePassthrough.assign(user_question=user_question).assign(result=result) | prompt | strict_llm | StrOutputParser()
     )
 
     return chain.invoke({"user_question": user_question, "result": result})
@@ -103,17 +105,19 @@ def database_tool(query: str):
     """Use this to perform SELECT queries to get information from the database that has a table 'db' containing the user's uploaded data."""    
     db = SQLDatabase(engine=get_sqlite_engine(), include_tables=["db"])
     execute_query = QuerySQLDataBaseTool(db=db,verbose=True,handle_tool_error=True)
-    write_query = create_sql_query_chain(st.session_state.llm, db,k=100)
+    write_query = create_sql_query_chain(st.session_state.strict_llm, db,k=100)
     column_names:list[str] = st.session_state.columns
     column_names = ", ".join(column_names)
     answer_prompt = PromptTemplate.from_template(
         """Given the following user question, corresponding SQL query, and SQL result, answer the user question. Make sure correct column names are used in the SQL query.
+        If the SQL result contains relevant information, use it to answer the question directly.
+        Do not say you don't have access to the information if the SQL result contains relevant data.
 
-            Question: {question}
-            Column Names: {column_names}
-            SQL Query: {query}
-            SQL Result: {result}
-            Answer: """
+        Question: {question}
+        Column Names: {column_names}
+        SQL Query: {query}
+        SQL Result: {result}
+        Answer: """
     )
 
     chain = (
@@ -121,11 +125,25 @@ def database_tool(query: str):
             result=itemgetter("query") | execute_query
         )
         | answer_prompt
-        | st.session_state.llm
+        | st.session_state.strict_llm
         | StrOutputParser()
     )
     
     return chain.invoke({"question": query, "column_names": column_names})
+
+# this tool is used to handle unexpected queries and user inputs
+@tool
+def handle_unexpected_query(query: str):
+    """
+    Handles unexpected queries or user inputs by providing a generic response.
+
+    Parameters:
+        query (str): The unexpected query or user input.
+
+    Returns:
+        str: A generic response to the unexpected query or user input.
+    """
+    return "I'm sorry, I couldn't understand your request. Could you please rephrase or provide more information?"
 
 @tool
 def describe_dataset(query: str):

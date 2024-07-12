@@ -111,18 +111,22 @@ with tab3:
                 It uses the uploaded dataset to provide answers to your questions. 
                 you can inquire about specific data points, relationships between variables, or summary statistics, 
                 making it easier to explore and understand their data without writing complex queries.''')
+    
     if st.session_state.file_uploaded:
-        user_question = None
-        user_question = st.text_input("Ask a question about your data:")
-        try:
-            if user_question:
-                chat_with_csv.initChat()
-            if user_question:
-                with st.spinner("Processing question..."):
-                    chat_with_csv.handle_userinput(user_question)
-                    print("User Question: ", user_question)
-        except Exception as e:
-            st.error(f"Error: {e}")
+        chat_container = st.container()
+        
+        user_question = st.text_input("Ask a question about your data:", key="user_question")
+        
+        if user_question:  # Check if there is a question submitted
+            try:
+                chat_with_csv.initChat()  # Initialize chat
+                
+                with chat_container:
+                    with st.spinner("Processing question..."):
+                        chat_with_csv.handle_userinput(user_question)  
+            except Exception as e:
+                st.error(f"Error: {e}")
+                st.write(chat_with_csv.ui.bot_template("Sorry, Something went Wrong. Please Try Again"), unsafe_allow_html=True)
     else:
         st.warning("Please upload and process a CSV file first.")
 
