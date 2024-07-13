@@ -30,7 +30,7 @@ def make_llm(API_KEY):
         st.session_state.strict_llm = ChatGoogleGenerativeAI(
             google_api_key=GOOGLE_PALM_API_KEY,
             model="gemini-pro",
-            temperature=0.8
+            temperature=0.3
         )
     except Exception as e:
         print(f"Error initializing LLM: {e}")

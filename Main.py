@@ -6,7 +6,18 @@ import Processing
 import chat_with_csv
 import os
 
-# Set page config
+
+def predict():
+    user_input = st.session_state.user_input
+    if user_input.strip() != '':
+        st.write("2 User Input: ", user_input)
+        print("2 User Input: ", user_input)
+        with st.spinner("Creating prediction ML model..."):
+            result = Model.prediction_model(df, target_variable, data_type, user_input)
+            st.session_state.result = result
+            print(result)
+
+            # Set page config
 st.set_page_config(
     page_title="KnowRep",
     page_icon="🔍",
@@ -54,6 +65,7 @@ with st.sidebar:
                 st.session_state.file_uploaded = False
                 st.session_state.insights = ''
                 st.session_state.display_insights = True
+                st.session_state.result = ''
                 st.success("Reset successful!")
                 st.experimental_rerun()
             except Exception as e:
@@ -129,7 +141,7 @@ with tab3:
                 st.write(chat_with_csv.ui.bot_template("Sorry, Something went Wrong. Please Try Again"), unsafe_allow_html=True)
     else:
         st.warning("Please upload and process a CSV file first.")
-
+            
 with tab4:
     st.header("ML Prediction")
     st.markdown('''This feature leverages machine learning algorithms to make predictions based on the uploaded CSV data. 
@@ -140,10 +152,10 @@ with tab4:
         if 'result' not in st.session_state:
             st.session_state.result = ''
         if 'user_input' not in st.session_state:
-            st.session_state.user_input = None
+            st.session_state.user_input = ''
         if st.button("Run ML Prediction", use_container_width=True):
             with st.spinner("Running prediction model..."):
-                try:
+                try: 
                     sample_file = Tools.load_csv_files(Tools.PATH)
                     sample_file = sample_file[:5]
                     df = Tools.load_csv_files(Tools.PATH, key='dataframe')
@@ -151,9 +163,12 @@ with tab4:
                     data_type = KnowRep.dataset_type(sample_file)  
                     st.markdown('Enter values for the following features, separated by commas:')
                     st.write(', '.join(df.columns.drop(target_variable) if data_type != 'clustering' else df.columns))
-                    user_input = st.text_input("Enter your input seperated by commas[,]", value=st.session_state.user_input)
-                    if user_input:
-                        st.session_state.result = Model.prediction_model(df, target_variable, data_type, st.session_state.user_input)
+
+                    st.text_input("Enter your input seperated by commas[,]", 
+                                               key="user_input", 
+                                               on_change= predict)
+                
+                    # st.markdown(result)
                 except Exception as e:
                     st.error(f"Error: {e}")
         st.markdown(st.session_state.result)
