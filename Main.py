@@ -175,6 +175,5 @@ with tab4:
     else:
         st.warning("Please upload and process a CSV file first.")
 
-
 st.sidebar.markdown("---")
 st.sidebar.markdown("Developed by Bit Bandits")
