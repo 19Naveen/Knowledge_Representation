@@ -1,15 +1,109 @@
 import pandas as pd
 import numpy as np
-import streamlit as st
-import Tools
-import KnowRep
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from xgboost import XGBClassifier, XGBRegressor
 from sklearn.cluster import KMeans, AgglomerativeClustering, MiniBatchKMeans
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.decomposition import PCA
+from sklearn.feature_selection import VarianceThreshold
+from sklearn.metrics import accuracy_score, classification_report, mean_absolute_error, mean_squared_error, silhouette_score
+
+def prepare_for_model(df, target_variable, pca_threshold=0.95, variance_threshold=0.01):
+    """
+    Prepare the dataframe for classification or regression model training.
+    
+    Args:
+    df (pd.DataFrame): Input dataframe.
+    target_variable (str): Name of the target variable column.
+    pca_threshold (float): Explained variance ratio threshold for PCA.
+    variance_threshold (float): Threshold for variance-based feature selection.
+    
+    Returns:
+    X (np.array): Prepared feature matrix.
+    y (np.array): Target variable.
+    feature_names (list): List of feature names after preprocessing.
+    """
+    X = df.drop(columns=[target_variable])
+    y = df[target_variable].values
+    
+    numeric_features = X.select_dtypes(include=['int64', 'float64']).columns
+    categorical_features = X.select_dtypes(include=['object', 'category']).columns
+    
+    encoder = OneHotEncoder(sparse=False, handle_unknown='ignore')
+    encoded_cats = encoder.fit_transform(X[categorical_features])
+    encoded_feature_names = encoder.get_feature_names_out(categorical_features)
+    
+    scaler = StandardScaler()
+    scaled_numeric = scaler.fit_transform(X[numeric_features])
+    
+    X_preprocessed = np.hstack((scaled_numeric, encoded_cats))
+    feature_names = list(numeric_features) + list(encoded_feature_names)
+    
+    selector = VarianceThreshold(threshold=variance_threshold)
+    X_selected = selector.fit_transform(X_preprocessed)
+    selected_mask = selector.get_support()
+    feature_names = [f for f, selected in zip(feature_names, selected_mask) if selected]
+    
+    if X_selected.shape[1] > 100:
+        pca = PCA(n_components=pca_threshold, svd_solver='full')
+        X_pca = pca.fit_transform(X_selected)
+        feature_names = [f"PC_{i+1}" for i in range(X_pca.shape[1])]
+        return X_pca, y, feature_names
+    else:
+        return X_selected, y, feature_names
+
+def prepare_for_clustering(df, pca_threshold=0.95, variance_threshold=0.01):
+    """
+    Prepare the dataframe for clustering model training.
+    
+    Args:
+    df (pd.DataFrame): Input dataframe.
+    pca_threshold (float): Explained variance ratio threshold for PCA.
+    variance_threshold (float): Threshold for variance-based feature selection.
+    
+    Returns:
+    X (np.array): Prepared feature matrix.
+    feature_names (list): List of feature names after preprocessing.
+    """
+    numeric_features = df.select_dtypes(include=['int64', 'float64']).columns
+    categorical_features = df.select_dtypes(include=['object', 'category']).columns
+    
+    encoder = OneHotEncoder(sparse=False, handle_unknown='ignore')
+    encoded_cats = encoder.fit_transform(df[categorical_features])
+    encoded_feature_names = encoder.get_feature_names_out(categorical_features)
+    
+    scaler = StandardScaler()
+    scaled_numeric = scaler.fit_transform(df[numeric_features])
+    
+    X_preprocessed = np.hstack((scaled_numeric, encoded_cats))
+    feature_names = list(numeric_features) + list(encoded_feature_names)
+    
+    selector = VarianceThreshold(threshold=variance_threshold)
+    X_selected = selector.fit_transform(X_preprocessed)
+    selected_mask = selector.get_support()
+    feature_names = [f for f, selected in zip(feature_names, selected_mask) if selected]
+    
+    if X_selected.shape[1] > 100:
+        pca = PCA(n_components=pca_threshold, svd_solver='full')
+        X_pca = pca.fit_transform(X_selected)
+        feature_names = [f"PC_{i+1}" for i in range(X_pca.shape[1])]
+        return X_pca, feature_names
+    else:
+        return X_selected, feature_names
 
 def classification_model_selection(size):
+    """
+    Select a classification model based on dataset size.
+    
+    Args:
+    size (int): Number of samples in the dataset.
+    
+    Returns:
+    model: Selected classification model.
+    """
     if size <= 1000:
         return SVC()
     elif size <= 10000:
@@ -18,6 +112,15 @@ def classification_model_selection(size):
         return XGBClassifier()
 
 def regression_model_selection(size):
+    """
+    Select a regression model based on dataset size.
+    
+    Args:
+    size (int): Number of samples in the dataset.
+    
+    Returns:
+    model: Selected regression model.
+    """
     if size <= 1000:
         return LinearRegression()
     elif size <= 10000:
@@ -26,6 +129,15 @@ def regression_model_selection(size):
         return XGBRegressor()
 
 def clustering_model_selection(size):
+    """
+    Select a clustering model based on dataset size.
+    
+    Args:
+    size (int): Number of samples in the dataset.
+    
+    Returns:
+    model: Selected clustering model.
+    """
     if size <= 1000:
         return KMeans(n_clusters=3)
     elif size <= 10000:
@@ -34,6 +146,16 @@ def clustering_model_selection(size):
         return MiniBatchKMeans(n_clusters=4)
 
 def model_selection(data_type, size):
+    """
+    Select an appropriate model based on data type and size.
+    
+    Args:
+    data_type (str): Type of the task - 'classification', 'regression', or 'clustering'.
+    size (int): Number of samples in the dataset.
+    
+    Returns:
+    model: Selected machine learning model.
+    """
     if data_type == 'classification':
         return classification_model_selection(size)
     elif data_type == 'regression':
@@ -41,106 +163,61 @@ def model_selection(data_type, size):
     else:
         return clustering_model_selection(size)
 
-def build_model(df, data_type, target_column=None):
-    categorical_columns = df.select_dtypes(include=['object', 'category']).columns
-    df = pd.get_dummies(df, columns=categorical_columns, drop_first=True)
+def prediction_model(df, target_variable, data_type, user_input):
+    """
+    Main function to predict model based on the input data.
+    
+    Args:
+    sample_file (str): Path to the input CSV file.
+    """
+
+    user_input = user_input.split(',')
+    if data_type == 'clustering':
+        X_selected, feature_names = prepare_for_clustering(df)
+    else:
+        X_selected, y, feature_names = prepare_for_model(df, target_variable)
 
     size = len(df)
-
-    if data_type == 'clustering':
-        X = df
-    else:
-        X = df.drop(columns=[target_column])
-        Y = df[target_column]
-
     model = model_selection(data_type, size)
 
+    preprocessor = {}
+
     if data_type != 'clustering':
-        model.fit(X, Y)
+        X_train, X_test, y_train, y_test = train_test_split(X_selected, y, test_size=0.1, random_state=42)
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+
+        if data_type == 'classification':
+            print('Accuracy:', accuracy_score(y_test, y_pred))
+            print(classification_report(y_test, y_pred))
+        elif data_type == 'regression':
+            print('Mean Absolute Error:', mean_absolute_error(y_test, y_pred))
+            print('Mean Squared Error:', mean_squared_error(y_test, y_pred))
+            print('R-squared:', model.score(X_test, y_test))
     else:
-        model.fit(X)
+        model.fit(X_selected)
+        labels = model.labels_
+        print('Silhouette Score:', silhouette_score(X_selected, labels))
 
-    return model
+    preprocessor['scaler'] = StandardScaler().fit(X_selected)
+    if X_selected.shape[1] > 100:
+        preprocessor['pca'] = PCA(n_components=0.95, svd_solver='full').fit(X_selected)
 
-def predict_with_model_input(model, input_data):
-    input_data = pd.DataFrame([input_data])
-    if hasattr(model, 'predict'):
-        return model.predict(input_data)
-    elif hasattr(model, 'transform'):
-        return model.transform(input_data)
-    else:
-        raise ValueError("Model does not have a 'predict' or 'transform' method.")
 
-def get_class_names(df, target_column):
-    unique_classes = df[target_column].unique()
-    return {int(i): str(cls) for i, cls in enumerate(unique_classes)}
+    print('Enter values for the following features, separated by commas:')
+    print(', '.join(df.columns.drop(target_variable) if data_type != 'clustering' else df.columns))
+    user_input = input().split(',')
+    user_df = pd.DataFrame([user_input], columns=df.columns.drop(target_variable) if data_type != 'clustering' else df.columns)
 
-def get_cluster_names(predictions):
-    unique_clusters = set(int(cluster) for cluster in predictions)
-    return {int(cluster): f"Cluster {cluster}" for cluster in unique_clusters}
-
-def get_input_predict(model, data_type, X, class_names=None, cluster_names=None):
-    columns = list(X.columns)
-    st.write("Columns available for prediction:", columns)
-
-    input_data = {}
-    for column in columns:
-        if X[column].dtype in ['int64', 'float64']:
-            input_data[column] = st.number_input(f"Enter value for {column}:", key=column)
-        elif X[column].dtype == 'bool':
-            input_data[column] = st.checkbox(f"Enter value for {column}:", key=column)
-        else:
-            input_data[column] = st.text_input(f"Enter value for {column}:", key=column)
-
-    if st.button('Predict'):
-        try:
-            predictions = predict_with_model_input(model, input_data)
-
-            if data_type == 'classification' and class_names:
-                named_predictions = [class_names.get(int(pred), f"Unknown Class {pred}") for pred in predictions]
-            elif data_type == 'clustering' and cluster_names:
-                named_predictions = [cluster_names.get(int(pred), f"Unknown Cluster {pred}") for pred in predictions]
-            elif data_type == 'regression':
-                # For regression, return the raw predicted values
-                named_predictions = predictions
-            else:
-                named_predictions = [float(pred) if isinstance(pred, (np.integer, np.floating)) else pred for pred in predictions]
-
-            return named_predictions
-        except Exception as e:
-            st.error(f"An error occurred during prediction: {str(e)}")
-            return None
-    else:
-        st.write("Please enter values and click 'Predict'")
-        return None
-
-def example_usage(df, data_type, target_column):
+ 
     if data_type == 'clustering':
-        model = build_model(df, data_type)
-        predictions = model.predict(df)
-        cluster_names = get_cluster_names(predictions)
-        named_predictions = get_input_predict(model, data_type, df, cluster_names=cluster_names)
-        st.write("Cluster Names:", {int(k): v for k, v in cluster_names.items()})
+        user_input_processed, _ = prepare_for_clustering(user_df)
     else:
-        class_names = {}
-        if data_type == 'classification' and target_column:
-            class_names = get_class_names(df, target_column)
+        user_input_processed, _, _ = prepare_for_model(user_df, target_variable)
 
-        model = build_model(df, data_type, target_column)
-        X = df.drop(columns=[target_column])
-        named_predictions = get_input_predict(model, data_type, X, class_names=class_names)
-    
-    if named_predictions is not None:
-        if data_type == 'regression':
-            st.write(f"Predicted value: {named_predictions[0]:.2f}")
-        else:
-            st.write("Predictions:", named_predictions)
+    prediction = model.predict(user_input_processed)
+    if data_type == 'clustering':
+        return f'Predicted cluster:{prediction[0]}'
+    else:
+        return f'Predicted {target_variable}: {prediction[0]}'
 
-def prediction_model(sample):
-    data = Tools.load_csv_files(Tools.PATH, key='dataframe')
-    csv_type = "regression" # KnowRep.dataset_type(llm, sample)
-    target = KnowRep.get_target(sample)
-    data = Tools.pd_load_csv_files(Tools.PATH)
-    csv_type = KnowRep.dataset_type(sample)  
-    target = KnowRep.get_target(sample)
-    example_usage(data, csv_type, target)

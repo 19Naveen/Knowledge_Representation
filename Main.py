@@ -137,13 +137,26 @@ with tab4:
                 other columns as features. This can be useful for forecasting, classification tasks, or identifying 
                 influential factors in the dataset.''')
     if st.session_state.file_uploaded:
+        if 'result' not in st.session_state:
+            st.session_state.result = ''
+        if 'user_input' not in st.session_state:
+            st.session_state.user_input = None
         if st.button("Run ML Prediction", use_container_width=True):
             with st.spinner("Running prediction model..."):
                 try:
-                    loaded_csv = Tools.load_csv_files(Tools.PATH)
-                    Model.prediction_model(loaded_csv)
+                    sample_file = Tools.load_csv_files(Tools.PATH)
+                    sample_file = sample_file[:5]
+                    df = Tools.load_csv_files(Tools.PATH, key='dataframe')
+                    target_variable = KnowRep.get_target(sample_file)  
+                    data_type = KnowRep.dataset_type(sample_file)  
+                    st.markdown('Enter values for the following features, separated by commas:')
+                    st.write(', '.join(df.columns.drop(target_variable) if data_type != 'clustering' else df.columns))
+                    user_input = st.text_input("Enter your input seperated by commas[,]", value=st.session_state.user_input)
+                    if user_input:
+                        st.session_state.result = Model.prediction_model(df, target_variable, data_type, st.session_state.user_input)
                 except Exception as e:
                     st.error(f"Error: {e}")
+        st.markdown(st.session_state.result)
     else:
         st.warning("Please upload and process a CSV file first.")
 
