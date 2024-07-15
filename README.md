@@ -14,20 +14,6 @@
     - [Members](#members)
 
 
-## Table of Contents
-1. [Objective](#objective)
-2. [Problem Description](#problem-description)
-3. [About the Project](#about-the-project)
-4. [How It Works](#how-it-works)
-    -   [Process Flow](#process-flow)
-5. [Technical Details](#technical-details)
-    - [Architecture](#architecture)
-    - [Key Technologies and Libraries](#key-technologies-and-libraries)
-6. [How to run the project](#how-to-run-the-project)
-7. [Made by Bit Bandits](#made-by-bit-bandits)
-    - [Members](#members)
-
-
 ## Objective: 
 The primary objective of this project is to develop an AI-based solution that can effectively represent 
 knowledge and generate insights from any structured dataset. The solution should be capable of 
