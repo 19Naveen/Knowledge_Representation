@@ -14,6 +14,20 @@
     - [Members](#members)
 
 
+## Table of Contents
+1. [Objective](#objective)
+2. [Problem Description](#problem-description)
+3. [About the Project](#about-the-project)
+4. [How It Works](#how-it-works)
+    -   [Process Flow](#process-flow)
+5. [Technical Details](#technical-details)
+    - [Architecture](#architecture)
+    - [Key Technologies and Libraries](#key-technologies-and-libraries)
+6. [How to run the project](#how-to-run-the-project)
+7. [Made by Bit Bandits](#made-by-bit-bandits)
+    - [Members](#members)
+
+
 ## Objective: 
 The primary objective of this project is to develop an AI-based solution that can effectively represent 
 knowledge and generate insights from any structured dataset. The solution should be capable of 
@@ -72,33 +86,11 @@ Knowledge Representation is an advanced AI solution that transforms raw data int
 
 ### Architecture
 
-![Architecture Diagram](<reports/img/Knowrep Architecture diagram - Bit Bandits - Large.jpg>)
+![Process Flow](<reports/img/Knowrep Process diagram - Bit Bandits.png>)
 
-Our application is built on a modular architecture, with key components including:
+## Architecture Diagram:
 
-- **Main.py**: The entry point of the application, handling the Streamlit UI and orchestrating other modules.
-- **KnowRep.py**: Core knowledge representation and insight generation logic.
-- **Processing.py**: Data preprocessing and cleaning utilities.
-- **Model.py**: Machine learning model selection and training.
-- **Tools.py**: Utility functions for file handling, data loading, and preprocessing.
-- **chat_with_csv.py**: Natural language interaction with the dataset.
-- **agent_tools.py**: Custom tools for the AI agent to interact with the database and format responses.
-- **ui_template.py**: CSS and HTML templates for a polished user interface.
-- **db.db**: SQLite database for storing user queries and responses.
-
-### Key Technologies and Libraries
-
-- **Python**: The core programming language used.
-- **Streamlit**: For building the web-based user interface.
-- **Pandas**: For data manipulation and analysis.
-- **Scikit-learn**: For machine learning algorithms and data preprocessing.
-- **XGBoost**: For gradient boosting machine learning.
-- **Matplotlib & Seaborn**: For data visualization.
-- **LangChain**: For building applications with large language models.
-- **SQLAlchemy**: For database operations and SQL query generation.
-- **SQLite**: For storing and querying data.
-- **Google Generative AI LLM**: For natural language processing and generation, we used LLM: `gemini-pro`
-
+![Architecture Diagram](<reports/img/Knowrep Architecture diagram - Bit Bandits.png>)
 
 ## How to run the project:
 
