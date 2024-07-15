@@ -1,12 +1,7 @@
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 import Tools
-import pandas as pd
 import streamlit as st
-import os
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.impute import SimpleImputer
 
 llm = None
 strict_llm = None
@@ -59,6 +54,7 @@ def get_target(sample_data):
         '''  
     query_template = PromptTemplate(template=prompt, input_variables=["columns", "sample_data"])
     query = query_template.format(columns=columns, sample_data=sample_data)
+    print("This is query template", query)
     response = st.session_state.llm.invoke(query)
     return response.content
 

@@ -60,6 +60,16 @@ message_template = '''
 '''
 
 def format_message(role, message):
+    """
+    Formats a message with the given role and message content.
+
+    Args:
+        role (str): The role of the message sender. Can be either "bot" or "user".
+        message (str): The content of the message.
+
+    Returns:
+        str: The formatted message with the role, avatar URL, and message content.
+    """
     avatar_url = "https://i.ibb.co/vvPvZcv/robot-croped.gif" if role == "bot" else "https://i.ibb.co/c8s2Mmb/image.png"
     return message_template.format(role=role, avatar_url=avatar_url, message=message)
 

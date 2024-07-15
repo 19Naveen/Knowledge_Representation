@@ -8,16 +8,26 @@ import os
 
 
 def predict():
+    """
+    Function to predict using the ML model.
+
+    This function takes the user input from the session state and uses it as input for the prediction model.
+    The result of the prediction is stored in the session state.
+
+    Parameters:
+        None
+
+    Returns:
+        None
+    """
     user_input = st.session_state.user_input
     if user_input.strip() != '':
         st.write("2 User Input: ", user_input)
-        print("2 User Input: ", user_input)
         with st.spinner("Creating prediction ML model..."):
             result = Model.prediction_model(df, target_variable, data_type, user_input)
             st.session_state.result = result
             print(result)
 
-            # Set page config
 st.set_page_config(
     page_title="KnowRep",
     page_icon="🔍",
@@ -67,7 +77,7 @@ with st.sidebar:
                 st.session_state.display_insights = True
                 st.session_state.result = ''
                 st.success("Reset successful!")
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"Error during reset: {e}")
 
@@ -168,7 +178,6 @@ with tab4:
                                                key="user_input", 
                                                on_change= predict)
                 
-                    # st.markdown(result)
                 except Exception as e:
                     st.error(f"Error: {e}")
         st.markdown(st.session_state.result)

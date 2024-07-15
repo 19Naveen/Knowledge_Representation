@@ -91,15 +91,12 @@ def get_conversation_chain(agent, tools, memory):
         tools=tools,
         verbose=True,
         memory=memory,
-        # handle_userinput=True
-        # handle errors
         handle_parsing_errors=True,
     )
     print("Agent Executor ready")
     return agent_executor
 
 
-# This will be called first called from the Main.py for "Chat with CSV" feature
 def initChat():
     """
     Initializes the chat application by setting up the necessary session state variables and objects.
@@ -143,7 +140,6 @@ def initChat():
     st.session_state.conversation = get_conversation_chain(agent, tools, memory)
     
 
-# Each time user inputs a question, this function will be called
 def handle_userinput(user_question):
     response = st.session_state.conversation.run(user_question)
     st.session_state.chat_history.append({"role": "human", "content": user_question})

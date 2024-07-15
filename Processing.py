@@ -56,9 +56,12 @@ def remove_outliers(df):
 def Visualize_charts(charts):
     """
     Create and save various types of charts based on the input specifications using Seaborn.
-    
+
     Args:
         charts (list): List of dictionaries containing chart specifications
+
+    Returns:
+        None
     """
     df = Tools.load_csv_files(Tools.ORIGINAL_PATH, key='dataframe')
     save_path = '/workspaces/Knowledge_Representation/Data/Visualized_Charts'

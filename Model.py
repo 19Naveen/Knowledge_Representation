@@ -1,17 +1,25 @@
 from sklearn.metrics import accuracy_score, classification_report
-import pandas as pd
 import numpy as np
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from xgboost import XGBClassifier, XGBRegressor
-from sklearn.cluster import KMeans, AgglomerativeClustering, MiniBatchKMeans
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.decomposition import PCA
 from sklearn.feature_selection import VarianceThreshold
 
 def classification_model_selection(size):
+    """
+    Selects a classification model based on the given size.
+
+    Parameters:
+    - size (int): The size of the dataset.
+
+    Returns:
+    - model: The selected classification model.
+
+    """
     if size <= 1000:
         return SVC()
     elif size <= 10000:
@@ -20,6 +28,16 @@ def classification_model_selection(size):
         return XGBClassifier()
 
 def regression_model_selection(size):
+    """
+    Selects a regression model based on the given size.
+
+    Parameters:
+        size (int): The size of the dataset.
+
+    Returns:
+        model: The selected regression model.
+
+    """
     if size <= 1000:
         return LinearRegression()
     elif size <= 10000:
@@ -28,6 +46,16 @@ def regression_model_selection(size):
         return XGBRegressor()
 
 def model_selection(data_type, size):
+    """
+    Selects a model based on the given data type and size.
+
+    Parameters:
+    - data_type (str): The type of data ('classification' or 'regression').
+    - size (int): The size of the data.
+
+    Returns:
+    - The selected model based on the data type and size.
+    """
     if data_type == 'classification':
         return classification_model_selection(size)
     else:
@@ -81,6 +109,19 @@ def prepare_for_model(df, target_variable, pca_threshold=0.95, variance_threshol
 
 
 def prediction_model(df, target_variable, data_type, user_input):
+    """
+    Predicts the target variable using a machine learning model.
+
+    Args:
+        df (pandas.DataFrame): The input dataframe.
+        target_variable (str): The name of the target variable column.
+        data_type (str): The type of the problem, either 'classification' or 'regression'.
+        user_input (str): The user input for prediction.
+
+    Returns:
+        str: The predicted value of the target variable.
+
+    """
     X_selected, y, feature_names = prepare_for_model(df, target_variable)
     size = len(df)
     model = model_selection(data_type, size)
