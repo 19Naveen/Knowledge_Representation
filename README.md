@@ -1,5 +1,19 @@
 # `KNOWLEDGE REPRESENTATION`
 
+## Table of Contents
+1. [Objective](#objective)
+2. [Problem Description](#problem-description)
+3. [About the Project](#about-the-project)
+4. [How It Works](#how-it-works)
+    -   [Process Flow](#process-flow)
+5. [Technical Details](#technical-details)
+    - [Architecture](#architecture)
+    - [Key Technologies and Libraries](#key-technologies-and-libraries)
+6. [How to run the project](#how-to-run-the-project)
+7. [Made by Bit Bandits](#made-by-bit-bandits)
+    - [Members](#members)
+
+
 ## Objective: 
 The primary objective of this project is to develop an AI-based solution that can effectively represent 
 knowledge and generate insights from any structured dataset. The solution should be capable of 
@@ -37,19 +51,14 @@ easily interact with it and understand the generated insights
 
 Knowledge Representation is an advanced AI solution that transforms raw data into actionable knowledge. By leveraging machine learning and natural language processing, our tool provides a user-friendly interface for data analysis, visualization, and insight generation. It addresses the critical need for efficient data processing and insight extraction in the age of information overload.
 
-## Key Features
 
-1. **Data Pre-processing**: Automatically cleans and prepares your dataset for analysis.
-2. **Knowledge Representation**: Visualizes data through intuitive graphs, charts, and other formats.
-3. **Pattern Identification**: Uncovers trends, anomalies, and significant patterns within your data.
-4. **Insight Generation**: Produces meaningful, actionable insights based on identified patterns.
-5. **Scalability**: Handles datasets of various sizes and complexities.
-6. **User-friendly Interface**: Ensures easy interaction and understanding of generated insights.
-7. **Natural Language Querying**: Allows users to ask questions about their data in plain English.
-8. **Interactive Visualizations**: Provides dynamic, customizable charts for data exploration.
-9. **Machine Learning Integration**: Offers predictive modeling capabilities for classification and regression tasks.
+[Detailed Documentation](https://github.com/19Naveen/Knowledge_Representation/wiki)
 
 ## How It Works
+
+### Process Flow
+
+![Process Flow](<reports/img/Knowrep Process diagram - Bit Bandits.png>)
 
 1. **Upload**: Users upload their CSV files through the Streamlit interface.
 2. **Process**: The application pre-processes the data, handling encoding detection and basic cleaning.
@@ -58,13 +67,38 @@ Knowledge Representation is an advanced AI solution that transforms raw data int
 5. **Interact**: Users can ask questions about their data using natural language, which are answered by our AI agent.
 6. **Predict**: For applicable datasets, users can run machine learning predictions using various algorithms.
 
-## Process Flow:
 
-![Process Flow](<reports/img/Knowrep Process diagram - Bit Bandits.png>)
+## Technical Details
 
-## Architecture Diagram:
+### Architecture
 
-![Architecture Diagram](<reports/img/Knowrep Architecture diagram - Bit Bandits.png>)
+![Architecture Diagram](<reports/img/Knowrep Architecture diagram - Bit Bandits - Large.jpg>)
+
+Our application is built on a modular architecture, with key components including:
+
+- **Main.py**: The entry point of the application, handling the Streamlit UI and orchestrating other modules.
+- **KnowRep.py**: Core knowledge representation and insight generation logic.
+- **Processing.py**: Data preprocessing and cleaning utilities.
+- **Model.py**: Machine learning model selection and training.
+- **Tools.py**: Utility functions for file handling, data loading, and preprocessing.
+- **chat_with_csv.py**: Natural language interaction with the dataset.
+- **agent_tools.py**: Custom tools for the AI agent to interact with the database and format responses.
+- **ui_template.py**: CSS and HTML templates for a polished user interface.
+- **db.db**: SQLite database for storing user queries and responses.
+
+### Key Technologies and Libraries
+
+- **Python**: The core programming language used.
+- **Streamlit**: For building the web-based user interface.
+- **Pandas**: For data manipulation and analysis.
+- **Scikit-learn**: For machine learning algorithms and data preprocessing.
+- **XGBoost**: For gradient boosting machine learning.
+- **Matplotlib & Seaborn**: For data visualization.
+- **LangChain**: For building applications with large language models.
+- **SQLAlchemy**: For database operations and SQL query generation.
+- **SQLite**: For storing and querying data.
+- **Google Generative AI LLM**: For natural language processing and generation, we used LLM: `gemini-pro`
+
 
 ## How to run the project:
 
