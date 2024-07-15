@@ -33,8 +33,41 @@ and complexities.
 6. **User-friendly Interface**: The solution should have a user-friendly interface that allows users to 
 easily interact with it and understand the generated insights
 
+## About the Project
+
+Knowledge Representation is an advanced AI solution that transforms raw data into actionable knowledge. By leveraging machine learning and natural language processing, our tool provides a user-friendly interface for data analysis, visualization, and insight generation. It addresses the critical need for efficient data processing and insight extraction in the age of information overload.
+
+## Key Features
+
+1. **Data Pre-processing**: Automatically cleans and prepares your dataset for analysis.
+2. **Knowledge Representation**: Visualizes data through intuitive graphs, charts, and other formats.
+3. **Pattern Identification**: Uncovers trends, anomalies, and significant patterns within your data.
+4. **Insight Generation**: Produces meaningful, actionable insights based on identified patterns.
+5. **Scalability**: Handles datasets of various sizes and complexities.
+6. **User-friendly Interface**: Ensures easy interaction and understanding of generated insights.
+7. **Natural Language Querying**: Allows users to ask questions about their data in plain English.
+8. **Interactive Visualizations**: Provides dynamic, customizable charts for data exploration.
+9. **Machine Learning Integration**: Offers predictive modeling capabilities for classification and regression tasks.
+
+## How It Works
+
+1. **Upload**: Users upload their CSV files through the Streamlit interface.
+2. **Process**: The application pre-processes the data, handling encoding detection and basic cleaning.
+3. **Analyze**: Leveraging machine learning algorithms, the tool identifies patterns and generates insights.
+4. **Visualize**: Results are presented through clear, interactive visualizations using Matplotlib and Seaborn.
+5. **Interact**: Users can ask questions about their data using natural language, which are answered by our AI agent.
+6. **Predict**: For applicable datasets, users can run machine learning predictions using various algorithms.
+
+## Process Flow:
+
+![Process Flow](<reports/img/Knowrep Process diagram - Bit Bandits.png>)
+
+## Architecture Diagram:
+
+![Architecture Diagram](<reports/img/Knowrep Architecture diagram - Bit Bandits.png>)
 
 ## How to run the project:
+
 1. Clone the repository
 
 2. Install the required libraries using the following command:
@@ -60,3 +93,5 @@ easily interact with it and understand the generated insights
 3. [Mithun Raaj S](https://github.com/Mithuncris)
 4. [Pathmesh G](https://github.com/Pathmesh)
 5. [Ponnarasu A](https://github.com/ponnarasua)
+
+

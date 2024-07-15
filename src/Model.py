@@ -1,5 +1,6 @@
 from sklearn.metrics import accuracy_score, classification_report
 import numpy as np
+import pandas as pd
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
@@ -8,6 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.decomposition import PCA
 from sklearn.feature_selection import VarianceThreshold
+
 
 def classification_model_selection(size):
     """
@@ -27,6 +29,7 @@ def classification_model_selection(size):
     else:
         return XGBClassifier()
 
+
 def regression_model_selection(size):
     """
     Selects a regression model based on the given size.
@@ -45,6 +48,7 @@ def regression_model_selection(size):
     else:
         return XGBRegressor()
 
+
 def model_selection(data_type, size):
     """
     Selects a model based on the given data type and size.
@@ -60,6 +64,7 @@ def model_selection(data_type, size):
         return classification_model_selection(size)
     else:
         return regression_model_selection(size)
+    
     
 
 def prepare_for_model(df, target_variable, pca_threshold=0.95, variance_threshold=0.01):
@@ -111,21 +116,17 @@ def prepare_for_model(df, target_variable, pca_threshold=0.95, variance_threshol
 def prediction_model(df, target_variable, data_type, user_input):
     """
     Predicts the target variable using a machine learning model.
-
     Args:
         df (pandas.DataFrame): The input dataframe.
         target_variable (str): The name of the target variable column.
         data_type (str): The type of the problem, either 'classification' or 'regression'.
         user_input (str): The user input for prediction.
-
     Returns:
         str: The predicted value of the target variable.
-
     """
     X_selected, y, feature_names = prepare_for_model(df, target_variable)
     size = len(df)
     model = model_selection(data_type, size)
-
     X_train, X_test, y_train, y_test = train_test_split(X_selected, y, test_size=0.1, random_state=42)
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
@@ -138,9 +139,13 @@ def prediction_model(df, target_variable, data_type, user_input):
         print('Mean Squared Error:', np.mean((y_pred - y_test)**2))
         print('R-squared:', model.score(X_test, y_test))
     
-    user_input = np.array(user_input.split(','), dtype=float).reshape(1, -1)
-    scaler = StandardScaler()
-    user_input_scaled = scaler.fit_transform(user_input)
+    # Convert user input to DataFrame
+    user_input_list = user_input.split(',')
+    user_df = pd.DataFrame([user_input_list], columns=df.drop(columns=[target_variable]).columns)
     
-    prediction = model.predict(user_input_scaled)
-    return f'Predicted target_variable : {prediction[0]}'
+    # Prepare user input
+    user_X, _, _ = prepare_for_model(user_df, target_variable)
+    
+    # Make prediction
+    prediction = model.predict(user_X)
+    return f'Predicted {target_variable}: {prediction[0]}'

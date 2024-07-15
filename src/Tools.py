@@ -3,7 +3,6 @@ import re
 import chardet
 import pandas as pd
 
-# Constants for file paths
 ORIGINAL_PATH = '/workspaces/Knowledge_Representation/Data/CSV/'
 VISUALIZE_PATH = '/workspaces/Knowledge_Representation/Data/Visualized_Charts/'
 PATH = '/workspaces/Knowledge_Representation/Data/Processed_Data/'
@@ -71,7 +70,6 @@ def get_dtype():
 
 
 import re
-
 def extract_visualization_info(response_content):
     """
     Extract visualization information from a response string.
@@ -99,7 +97,6 @@ def extract_visualization_info(response_content):
             'info': insights[i] if i < len(insights) else None  # Handle case where there are more columns than insights
         }
         result.append(info)
-    
     return result
 
 

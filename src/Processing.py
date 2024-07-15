@@ -1,14 +1,16 @@
-import Tools
+import src.Tools as Tools
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.impute import SimpleImputer
+import numpy as np
+
 
 def preprocess_dataset():
     """
     Preprocess the dataset by handling missing values and removing outliers.
-    
+   
     Raises:
         ValueError: If there's an error loading the dataset or if it's empty.
     """
@@ -16,42 +18,65 @@ def preprocess_dataset():
         df = Tools.load_csv_files(Tools.ORIGINAL_PATH, key='dataframe')
     except Exception as e:
         raise ValueError(f"Error loading dataset: {e}")
-
+    
     if df.empty:
         raise ValueError("The dataset is empty.")
-
+    
+    if not isinstance(df, pd.DataFrame):
+        raise ValueError("The loaded data is not a pandas DataFrame.")
+    df.dropna(axis=1, how='all', inplace=True)
+    
+    if df.empty:
+        raise ValueError("All columns were empty and have been removed.")
+    
     for col in df.columns:
+        if df[col].isnull().all():
+            print(f"Warning: Column '{col}' is entirely empty. Dropping this column.")
+            df.drop(col, axis=1, inplace=True)
+            continue
+        
         if df[col].isnull().any():
             if pd.api.types.is_numeric_dtype(df[col]):
-                imputer = SimpleImputer(strategy='mean')
-                df[col] = imputer.fit_transform(df[[col]]).flatten()
+                imputer = SimpleImputer(strategy='mean', missing_values=np.nan)
             elif df[col].dtype == 'object':
-                imputer = SimpleImputer(strategy='most_frequent')
-                df[col] = imputer.fit_transform(df[[col]]).flatten()
+                imputer = SimpleImputer(strategy='most_frequent', missing_values=np.nan)
             else:
-                raise ValueError(f"Column {col} has unsupported data type {df[col].dtype} for imputation.")
-
+                print(f"Warning: Column {col} has unsupported data type {df[col].dtype} for imputation. Skipping.")
+                continue
+            
+            df[col] = imputer.fit_transform(df[[col]]).flatten()
+    
+    if df.empty:
+        raise ValueError("All columns have been removed due to being empty or having unsupported data types.")
     df = remove_outliers(df)
-    df.to_csv(os.path.join(Tools.PATH, "Output.csv"), index=False)
+    output_path = os.path.join(Tools.PATH, "Output.csv")
+    try:
+        df.to_csv(output_path, index=False)
+    except Exception as e:
+        raise IOError(f"Error saving processed dataset: {e}")
+
 
 def remove_outliers(df):
     """
     Remove outliers from numerical columns using the IQR method.
-    
+   
     Args:
         df (pd.DataFrame): Input DataFrame
-    
+   
     Returns:
         pd.DataFrame: DataFrame with outliers removed
     """
-    for col in df.select_dtypes(include=['int64', 'float64']).columns:
-        Q1 = df[col].quantile(0.25)
-        Q3 = df[col].quantile(0.75)
-        IQR = Q3 - Q1
-        lower_bound = Q1 - 1.5 * IQR
-        upper_bound = Q3 + 1.5 * IQR
-        df = df[(df[col] >= lower_bound) & (df[col] <= upper_bound)]
+    numeric_columns = df.select_dtypes(include=['int64', 'float64']).columns
+    for col in numeric_columns:
+        if df[col].nunique() > 1:  # Only process columns with more than one unique value
+            Q1 = df[col].quantile(0.25)
+            Q3 = df[col].quantile(0.75)
+            IQR = Q3 - Q1
+            lower_bound = Q1 - 1.5 * IQR
+            upper_bound = Q3 + 1.5 * IQR
+            df = df[(df[col] >= lower_bound) & (df[col] <= upper_bound)]
     return df
+
 
 def Visualize_charts(charts):
     """

@@ -1,9 +1,9 @@
 import streamlit as st
-import KnowRep
-import Tools
-import Model
-import Processing
-import chat_with_csv
+import src.KnowRep as KnowRep
+import src.Tools as Tools
+import src.Model as Model
+import src.Processing as Processing
+import src.chat_with_csv.chat_with_csv as chat_with_csv
 import os
 
 
@@ -22,11 +22,12 @@ def predict():
     """
     user_input = st.session_state.user_input
     if user_input.strip() != '':
-        st.write("2 User Input: ", user_input)
+        st.write("User Input: ", user_input)
         with st.spinner("Creating prediction ML model..."):
             result = Model.prediction_model(df, target_variable, data_type, user_input)
             st.session_state.result = result
             print(result)
+
 
 st.set_page_config(
     page_title="KnowRep",
@@ -45,11 +46,11 @@ if 'file_uploaded' not in st.session_state:
     st.session_state.file_uploaded = False
 Tools.make_folders()
 
+
 # Sidebar
 with st.sidebar:
     st.image("https://static.vecteezy.com/system/resources/previews/010/794/341/non_2x/purple-artificial-intelligence-technology-circuit-file-free-png.png", width=200)
     st.title("KnowRep")
-    st.write(st.session_state)
     st.session_state.api_key = st.text_input("Enter your API Key", type="password", value=st.session_state.api_key)
     uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
     
@@ -81,6 +82,7 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Error during reset: {e}")
 
+
 # Main content
 st.markdown("# **KNOWLEDGE REPRESENTATION ON STRUCTURED DATASETS**")
 tab1, tab2, tab3, tab4 = st.tabs(["Home", "Insights Generation", "Chat with CSV", "ML Prediction"])
@@ -92,7 +94,6 @@ with tab1:
     st.markdown('')
     st.markdown("##### :red[TO GET STARTED]")
     st.markdown("1. Enter your API key in the sidebar\n2. Upload a CSV file\n3. Click **Process File**\n4. Use the Options above to access different features\n5. Click **Reset Application** to reset the current workflow so you can start Analyzing your new CSV file")
-    
 
 with tab2:
     st.markdown("## Insights Generation")
@@ -135,20 +136,18 @@ with tab3:
                 making it easier to explore and understand their data without writing complex queries.''')
     
     if st.session_state.file_uploaded:
-        chat_container = st.container()
-        
-        user_question = st.text_input("Ask a question about your data:", key="user_question")
-        
-        if user_question:  # Check if there is a question submitted
-            try:
-                chat_with_csv.initChat()  # Initialize chat
-                
-                with chat_container:
-                    with st.spinner("Processing question..."):
-                        chat_with_csv.handle_userinput(user_question)  
-            except Exception as e:
-                st.error(f"Error: {e}")
-                st.write(chat_with_csv.ui.bot_template("Sorry, Something went Wrong. Please Try Again"), unsafe_allow_html=True)
+        if st.button("Start Chat", use_container_width=True):
+            chat_container = st.container()
+            user_question = st.text_input("Ask a question about your data:", key="user_question")
+            if user_question:  
+                try:
+                    chat_with_csv.initChat()  
+                    with chat_container:
+                        with st.spinner("Processing question..."):
+                            chat_with_csv.handle_userinput(user_question)  
+                except Exception as e:
+                    st.error(f"Error: {e}")
+                    st.write(chat_with_csv.ui.bot_template("Sorry, Something went Wrong. Please Try Again"), unsafe_allow_html=True)
     else:
         st.warning("Please upload and process a CSV file first.")
             

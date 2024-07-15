@@ -1,6 +1,6 @@
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
-import Tools
+import src.Tools as Tools
 import streamlit as st
 
 llm = None
@@ -30,6 +30,7 @@ def make_llm(API_KEY):
     except Exception as e:
         print(f"Error initializing LLM: {e}")
 
+
 def get_target(sample_data):
     """
     Determine the target variable in the dataset.
@@ -58,6 +59,7 @@ def get_target(sample_data):
     response = st.session_state.llm.invoke(query)
     return response.content
 
+
 def dataset_type(csv):
     """
     Determine the type of machine learning problem suitable for the dataset.
@@ -78,6 +80,7 @@ def dataset_type(csv):
     query = query_template.format(dataset=csv, column=Tools.fetch_columns())
     response = st.session_state.llm.invoke(query)
     return response.content
+
 
 def generate_insights(csv):
     """
@@ -115,6 +118,7 @@ def generate_insights(csv):
     except Exception as e:
         return f"Error generating insights: {e}"
 
+
 def generate_and_extract_charts(df):
     """
     Generate and extract chart recommendations based on the dataset.
@@ -128,7 +132,6 @@ def generate_and_extract_charts(df):
     columns_str = str(list(df.columns))
     stats_str = str(df.describe(include='all').to_dict())
     dtypes_str = str(df.dtypes.apply(lambda x: x.name).to_dict())
-
     prompt_template = '''
         As a senior Data Analyst specializing in extracting and visualizing insights, your task is to analyze the provided structured dataset and identify key patterns and trends.
 
@@ -136,26 +139,23 @@ def generate_and_extract_charts(df):
         Statistical Summary: {stats}
         Data Types: {dtypes}
 
-        Based on your analysis, suggest the most appropriate types of visualizations for these columns. Your goal is to generate at least 5 different graphs from the following options: Line Chart, Pie Chart, Bar Chart, Histogram, Scatter Plot, Box Plot, Heatmap, and Area Chart.
+        Based on your analysis, suggest the most appropriate types of visualizations for these columns. Your goal is to generate at least 8 different graphs from the following options: Line Chart, Pie Chart, Bar Chart, Histogram, Scatter Plot, Box Plot, Heatmap, and Area Chart.
 
         For each visualization, please:
         1. Specify the columns to be used for the x and y axes (if applicable)
         2. Recommend the chart type
-        3. Provide a brief rationale for your choice (1-2 sentences), considering the data types of the columns
-        4. Suggest a key insight that might be gleaned from this visualization
+        3. Suggest a key insight that might be gleaned from this visualization
 
         Please return your recommendations in the following format (note that the first index should be the x-axis, the second index should be the y-axis, and the third index should be the chart type):
 
         Example:
         1. [YearBuilt, Price, Scatter Plot]
-           - Rationale: Scatter plots are useful for identifying relationships between two numerical variables.
            - Potential Insight: This visualization could reveal trends such as whether newer properties tend to have higher prices.
 
-        IMPORTANT: Provide at least 5 visualizations.
+        IMPORTANT: Provide at least 8 visualizations.
     '''
 
     prompt = prompt_template.format(columns=columns_str, stats=stats_str, dtypes=dtypes_str)
     response = st.session_state.llm.invoke(prompt)
     visualizations = Tools.extract_visualization_info(response.content)
-    
     return visualizations
