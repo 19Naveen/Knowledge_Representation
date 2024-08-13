@@ -5,28 +5,7 @@ import src.Model as Model
 import src.Processing as Processing
 import src.chat_with_csv.chat_with_csv as chat_with_csv
 import os
-
-
-def predict():
-    """
-    Function to predict using the ML model.
-
-    This function takes the user input from the session state and uses it as input for the prediction model.
-    The result of the prediction is stored in the session state.
-
-    Parameters:
-        None
-
-    Returns:
-        None
-    """
-    user_input = st.session_state.user_input
-    if user_input.strip() != '':
-        st.write("User Input: ", user_input)
-        with st.spinner("Creating prediction ML model..."):
-            result = Model.prediction_model(df, target_variable, data_type, user_input)
-            st.session_state.result = result
-            print(result)
+import src.chat_with_csv.ui_template as ui
 
 
 st.set_page_config(
@@ -53,7 +32,7 @@ with st.sidebar:
     st.title("KnowRep")
     st.session_state.api_key = st.text_input("Enter your API Key", type="password", value=st.session_state.api_key)
     uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
-    
+    st.write(st.session_state)
     if uploaded_file is not None and st.session_state.api_key and not st.session_state.file_uploaded:
         if st.button("Process File"):
             with st.spinner("Processing..."):
@@ -133,16 +112,28 @@ with tab3:
     st.markdown('''This interactive feature allows you to ask questions about your CSV data in natural language. 
                 It uses the uploaded dataset to provide answers to your questions. 
                 you can inquire about specific data points, relationships between variables, or summary statistics, 
-                making it easier to explore and understand their data without writing complex queries.''')
-    
+                making it easier to explore and understand their data without writing complex queries.
+                eg., "Can you describe the dataset?"
+                
+                ''')
+    if 'chat_started' not in st.session_state:
+        st.session_state['chat_started'] = False
     if st.session_state.file_uploaded:
-        if st.button("Start Chat", use_container_width=True):
-            chat_container = st.container()
-            user_question = st.text_input("Ask a question about your data:", key="user_question")
+        if st.button("Start Chat", use_container_width=True, disabled=st.session_state.chat_started):
+            st.session_state.chat_started = True
+            chat_with_csv.initChat()
+        chat_container = st.container()
+
+            
+            
+        if st.session_state['chat_started']:
+            user_question = st.chat_input("Ask a question about your data:", key="user_question")
             if user_question:  
                 try:
-                    chat_with_csv.initChat()  
+                    st.sidebar.write("Chat history")
+                    st.sidebar.write(st.session_state['chat_history'])
                     with chat_container:
+                        st.write(ui.CSS, unsafe_allow_html=True)
                         with st.spinner("Processing question..."):
                             chat_with_csv.handle_userinput(user_question)  
                 except Exception as e:
@@ -150,8 +141,31 @@ with tab3:
                     st.write(chat_with_csv.ui.bot_template("Sorry, Something went Wrong. Please Try Again"), unsafe_allow_html=True)
     else:
         st.warning("Please upload and process a CSV file first.")
+
             
 with tab4:
+
+
+    def predict():
+        """
+        Function to predict using the ML model.
+
+        This function takes the user input from the session state and uses it as input for the prediction model.
+        The result of the prediction is stored in the session state.
+
+        Parameters:
+            None
+
+        Returns:
+            None
+        """
+        user_input = st.session_state.user_input
+        if user_input.strip() != '':
+            with st.spinner("Creating prediction ML model..."):
+                result = Model.prediction_model(df, target_variable, data_type, user_input)
+                st.session_state.result = result
+
+
     st.header("ML Prediction")
     st.markdown('''This feature leverages machine learning algorithms to make predictions based on the uploaded CSV data. 
                 Users can select a target column, and the system will attempt to predict values for that column using 
@@ -176,10 +190,14 @@ with tab4:
                     st.text_input("Enter your input seperated by commas[,]", 
                                                key="user_input", 
                                                on_change= predict)
-                
+                    
                 except Exception as e:
                     st.error(f"Error: {e}")
-        st.markdown(st.session_state.result)
+        
+        if st.session_state.result:
+            st.markdown('\n#### :red[Result📝]:')
+            st.markdown(f'User Input:  {st.session_state.user_input}')
+            st.markdown(f'{st.session_state.result}')
     else:
         st.warning("Please upload and process a CSV file first.")
 
