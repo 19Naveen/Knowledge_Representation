@@ -55,6 +55,7 @@ with st.sidebar:
                 st.session_state.insights = ''
                 st.session_state.display_insights = True
                 st.session_state.result = ''
+                st.session_state.chat_started = False
                 st.success("Reset successful!")
                 st.rerun()
             except Exception as e:
@@ -71,7 +72,14 @@ with tab1:
     st.markdown('')
     st.markdown('')
     st.markdown("##### :red[TO GET STARTED]")
-    st.markdown("1. Enter your API key in the sidebar\n2. Upload a CSV file\n3. Click **Process File**\n4. Use the Options above to access different features\n5. Click **Reset Application** to reset the current workflow so you can start Analyzing your new CSV file")
+    st.markdown(
+            """
+                1. Enter your Gemini API key in the sidebar. [Click here to obtain one.](https://aistudio.google.com/app/apikey)
+                2. Upload a CSV file.
+                3. Click :orange[Process File].
+                4. Use the options above to access different features.
+                5. Click :orange[Reset Application] to reset the current workflow and start analyzing a new CSV file.
+            """)
 
 with tab2:
     st.markdown("## Insights Generation")
@@ -111,10 +119,9 @@ with tab3:
     st.markdown('''This interactive feature allows you to ask questions about your CSV data in natural language. 
                 It uses the uploaded dataset to provide answers to your questions. 
                 you can inquire about specific data points, relationships between variables, or summary statistics, 
-                making it easier to explore and understand their data without writing complex queries.
-                eg., "Can you describe the dataset?"
-                
-                ''')
+                making it easier to explore and understand their data without writing complex queries.''')
+    st.markdown(":red[EG] : **Can you describe the dataset?**")
+               
     if 'chat_started' not in st.session_state:
         st.session_state['chat_started'] = False
     if st.session_state.file_uploaded:

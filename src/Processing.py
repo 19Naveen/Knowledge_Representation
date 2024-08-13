@@ -89,7 +89,7 @@ def Visualize_charts(charts):
         None
     """
     df = Tools.load_csv_files(Tools.ORIGINAL_PATH, key='dataframe')
-    save_path = '/workspaces/Knowledge_Representation/Data/Visualized_Charts'
+    save_path = './Data/Visualized_Charts'
     os.makedirs(save_path, exist_ok=True)
     
     sns.set_theme(style="whitegrid", palette="deep", font="sans-serif")
