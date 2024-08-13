@@ -1,4 +1,3 @@
-from sklearn.metrics import accuracy_score, classification_report
 import numpy as np
 import pandas as pd
 from sklearn.svm import SVC
@@ -6,24 +5,24 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from xgboost import XGBClassifier, XGBRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.decomposition import PCA
-from sklearn.feature_selection import VarianceThreshold
-
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import accuracy_score, classification_report, mean_absolute_error, mean_squared_error, r2_score
 
 def classification_model_selection(size):
     """
-    Selects a classification model based on the given size.
-
-    Parameters:
-    - size (int): The size of the dataset.
-
+    Select a classification model based on the dataset size.
+    
+    Args:
+    size (int): The number of samples in the dataset.
+    
     Returns:
-    - model: The selected classification model.
-
+    sklearn estimator: A classification model suitable for the given dataset size.
     """
     if size <= 1000:
-        return SVC()
+        return SVC(probability=True)
     elif size <= 10000:
         return RandomForestClassifier()
     else:
@@ -32,14 +31,13 @@ def classification_model_selection(size):
 
 def regression_model_selection(size):
     """
-    Selects a regression model based on the given size.
-
-    Parameters:
-        size (int): The size of the dataset.
-
+    Select a regression model based on the dataset size.
+    
+    Args:
+    size (int): The number of samples in the dataset.
+    
     Returns:
-        model: The selected regression model.
-
+    sklearn estimator: A regression model suitable for the given dataset size.
     """
     if size <= 1000:
         return LinearRegression()
@@ -51,101 +49,110 @@ def regression_model_selection(size):
 
 def model_selection(data_type, size):
     """
-    Selects a model based on the given data type and size.
-
-    Parameters:
-    - data_type (str): The type of data ('classification' or 'regression').
-    - size (int): The size of the data.
-
+    Select a model based on the problem type and dataset size.
+    
+    Args:
+    data_type (str): The type of problem ('classification' or 'regression').
+    size (int): The number of samples in the dataset.
+    
     Returns:
-    - The selected model based on the data type and size.
+    sklearn estimator: A model suitable for the given problem type and dataset size.
     """
     if data_type == 'classification':
         return classification_model_selection(size)
     else:
         return regression_model_selection(size)
-    
-    
 
-def prepare_for_model(df, target_variable, pca_threshold=0.95, variance_threshold=0.01):
+
+def prepare_pipeline(df, target_variable):
     """
-    Prepare the dataframe for model training.
+    Prepare the data pipeline for model training.
     
     Args:
-    df (pd.DataFrame): Input dataframe
-    target_variable (str): Name of the target variable column
-    pca_threshold (float): Explained variance ratio threshold for PCA
-    variance_threshold (float): Threshold for variance-based feature selection
+    df (pandas.DataFrame): The input dataframe.
+    target_variable (str): The name of the target variable column.
     
     Returns:
-    X (np.array): Prepared feature matrix
-    y (np.array): Target variable
-    feature_names (list): List of feature names after preprocessing
+    tuple: X (features), y (target), preprocessor (ColumnTransformer), le (LabelEncoder if applicable)
     """
-    
     X = df.drop(columns=[target_variable])
-    y = df[target_variable].values
+    y = df[target_variable]
+
+    le = None
+    if y.dtype == 'object':
+        le = LabelEncoder()
+        y = le.fit_transform(y)
     
     numeric_features = X.select_dtypes(include=['int64', 'float64']).columns
     categorical_features = X.select_dtypes(include=['object', 'category']).columns
     
-    encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
-    encoded_cats = encoder.fit_transform(X[categorical_features])
-    encoded_feature_names = encoder.get_feature_names_out(categorical_features)
+    numeric_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='median')),
+        ('scaler', StandardScaler())
+    ])
     
-    scaler = StandardScaler()
-    scaled_numeric = scaler.fit_transform(X[numeric_features])
+    categorical_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+        ('onehot', OneHotEncoder(handle_unknown='ignore'))
+    ])
     
-    X_preprocessed = np.hstack((scaled_numeric, encoded_cats))
-    feature_names = list(numeric_features) + list(encoded_feature_names)
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('num', numeric_transformer, numeric_features),
+            ('cat', categorical_transformer, categorical_features)
+        ])
     
-    selector = VarianceThreshold(threshold=variance_threshold)
-    X_selected = selector.fit_transform(X_preprocessed)
-    selected_mask = selector.get_support()
-    feature_names = [f for f, selected in zip(feature_names, selected_mask) if selected]
-    
-    if X_selected.shape[1] > 100: 
-        pca = PCA(n_components=pca_threshold, svd_solver='full')
-        X_pca = pca.fit_transform(X_selected)
-        feature_names = [f"PC_{i+1}" for i in range(X_pca.shape[1])]
-        return X_pca, y, feature_names
-    else:
-        return X_selected, y, feature_names
+    return X, y, preprocessor, le
 
 
 def prediction_model(df, target_variable, data_type, user_input):
     """
-    Predicts the target variable using a machine learning model.
+    Train a prediction model, evaluate it, and make predictions on user input.
+    
     Args:
-        df (pandas.DataFrame): The input dataframe.
-        target_variable (str): The name of the target variable column.
-        data_type (str): The type of the problem, either 'classification' or 'regression'.
-        user_input (str): The user input for prediction.
+    df (pandas.DataFrame): The input dataframe.
+    target_variable (str): The name of the target variable column.
+    data_type (str): The type of problem ('classification' or 'regression').
+    user_input (str): Comma-separated string of user input for prediction.
+    
     Returns:
-        str: The predicted value of the target variable.
+    str: A string containing the model evaluation metrics and the prediction for the user input.
     """
-    X_selected, y, feature_names = prepare_for_model(df, target_variable)
+    X, y, preprocessor, le = prepare_pipeline(df, target_variable)
+    
     size = len(df)
     model = model_selection(data_type, size)
-    X_train, X_test, y_train, y_test = train_test_split(X_selected, y, test_size=0.1, random_state=42)
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
+    
+    full_pipeline = Pipeline([
+        ('preprocessor', preprocessor),
+        ('model', model)
+    ])
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    full_pipeline.fit(X_train, y_train)    
+    y_pred = full_pipeline.predict(X_test)
     
     if data_type == 'classification':
         print('Accuracy:', accuracy_score(y_test, y_pred))
-        print(classification_report(y_test, y_pred))
+        print(classification_report(y_test, y_pred, target_names=le.classes_ if le else None))
     elif data_type == 'regression':
-        print('Mean Absolute Error:', np.mean(np.abs(y_pred - y_test)))
-        print('Mean Squared Error:', np.mean((y_pred - y_test)**2))
-        print('R-squared:', model.score(X_test, y_test))
+        print('Mean Absolute Error:', mean_absolute_error(y_test, y_pred))
+        print('Mean Squared Error:', mean_squared_error(y_test, y_pred))
+        print('R-squared:', r2_score(y_test, y_pred))
     
-    # Convert user input to DataFrame
     user_input_list = user_input.split(',')
-    user_df = pd.DataFrame([user_input_list], columns=df.drop(columns=[target_variable]).columns)
+    user_df = pd.DataFrame([user_input_list], columns=X.columns)
+    user_prediction = full_pipeline.predict(user_df)
+    user_prediction = np.round(user_prediction).astype(int)
     
-    # Prepare user input
-    user_X, _, _ = prepare_for_model(user_df, target_variable)
+    if data_type == 'classification' and le:
+        user_prediction = le.inverse_transform(user_prediction)
+    result = f'Predicted {target_variable}: {user_prediction[0]}'
     
-    # Make prediction
-    prediction = model.predict(user_X)
-    return f'Predicted {target_variable}: {prediction[0]}'
+    if le:
+        label_mapping = dict(zip(le.classes_, le.transform(le.classes_)))
+        result += '\n\nLabel Mapping:'
+        for num, label in label_mapping.items():
+            result +=  f'\n{num}: {label}'
+    
+    return result

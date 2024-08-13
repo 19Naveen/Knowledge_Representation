@@ -32,7 +32,6 @@ with st.sidebar:
     st.title("KnowRep")
     st.session_state.api_key = st.text_input("Enter your API Key", type="password", value=st.session_state.api_key)
     uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
-    st.write(st.session_state)
     if uploaded_file is not None and st.session_state.api_key and not st.session_state.file_uploaded:
         if st.button("Process File"):
             with st.spinner("Processing..."):
