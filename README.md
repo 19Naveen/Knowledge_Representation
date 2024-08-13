@@ -60,20 +60,24 @@ Knowledge Representation is an advanced AI solution that transforms raw data int
 
 ### Process Flow
 
-![Process Flow](<reports/img/Knowrep Process diagram - Bit Bandits.png>)
+<div style="text-align: center;">
+    <img src = "reports/img/Knowrep Process diagram - Bit Bandits.png" height = 80% width = 80% title = "Process Flow" >
+</div>
 
 1. **Upload**: Users upload their CSV files through the Streamlit interface.
 2. **Process**: The application pre-processes the data, handling encoding detection and basic cleaning.
 3. **Analyze**: Leveraging machine learning algorithms, the tool identifies patterns and generates insights.
 4. **Visualize**: Results are presented through clear, interactive visualizations using Matplotlib and Seaborn.
-5. **Interact**: Users can ask questions about their data using natural language, which are answered by our AI agent.
+5. **Interact**: Users can ask questions about their data using natural language, which are answered by our AI agent. The User questions are converted into `SQL` queries and executed on the dataset. The results are displayed in the understandable format.
 6. **Predict**: For applicable datasets, users can run machine learning predictions using various algorithms.
 ---
 ## Technical Details
 
 ## Architecture Diagram:
-
 ![Architecture Diagram](<reports/img/Knowrep Architecture diagram - Bit Bandits.png>)
+
+
+[Architecture Diagram](https://github.com/19Naveen/Knowledge_Representation/blob/3b3de4028289e0946e93437014e1aff687b636d6/reports/img/Knowrep%20Architecture%20diagram%20-%20Bit%20Bandits.png)
 
 ### Key Technologies and Libraries
 
@@ -85,11 +89,14 @@ Knowledge Representation is an advanced AI solution that transforms raw data int
 - **Matplotlib & Seaborn**: For data visualization.
 - **LangChain**: For building applications with large language models.
 - **SQLAlchemy**: For database operations and SQL query generation.
+- **SQLite**: For storing and querying data.
 - **Google Generative AI LLM**: For natural language processing and generation, we used LLM: `gemini-pro`
 ---
+## Example
 ## Datasets Utilized and Analayzed
 
-## Weather Pattern Analysis (Classification)
+### Weather Pattern Analysis (Classification)
+[Weather Dataset](datasets/weather_classification_data.csv)
 
 #### Dataset Overview
 11,586 weather observations with 11 features including temperature, humidity, wind speed, and atmospheric conditions.
@@ -104,7 +111,9 @@ Knowledge Representation is an advanced AI solution that transforms raw data int
 2. Develop predictive models for precipitation based on wind speed data to improve weather forecasting accuracy.
 3. Optimize outdoor activity planning and travel logistics based on visibility and cloud cover predictions.
 ---
-## Real Estate Market Insights (Regression)
+### Real Estate Market Insights (Regression)
+
+[MELB Dataset](datasets/melb_data.csv)
 
 #### Dataset Overview
 Comprehensive data on Melbourne's real estate market, including property characteristics, pricing, and geographical information.
@@ -138,6 +147,9 @@ Comprehensive data on Melbourne's real estate market, including property charact
     ```
 
 5. The application will open in the default browser and you can start using it.
+<div style="text-align: center;">
+    <img src = "reports/img/main_page.png" height = 80% width = 80% title = "Main Page" >
+</div>
 
 6. You need to get your free gemini API key from [here](https://aistudio.google.com/app/apikey) and enter it in the app's sidebar and then upload the dataset (ie., .csv file).
 
@@ -149,8 +161,10 @@ Comprehensive data on Melbourne's real estate market, including property charact
 
 10. Any queries or suggestions can be raised as an issue in the repository.
 
----
 
+#### References:
+1. [Some Datasets we used to train and improve the model](datasets)
+---
 ### **Made by Bit Bandits**
 ### Members:
 1. [Naveenkumar D](https://github.com/19Naveen)
