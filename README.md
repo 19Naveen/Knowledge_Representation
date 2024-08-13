@@ -1,5 +1,5 @@
 # `KNOWLEDGE REPRESENTATION`
-Web URL - https://knowledgerepresentation-bitbandits.streamlit.app/
+Deployed Web URL - https://knowledgerepresentation-bitbandits.streamlit.app/
 
 ## Table of Contents
 1. [Objective](#objective)
