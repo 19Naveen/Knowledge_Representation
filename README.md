@@ -11,8 +11,8 @@ Deployed Web URL - https://knowledgerepresentation-bitbandits.streamlit.app/
     - [Architecture](#architecture-diagram)
     - [Key Technologies and Libraries](#key-technologies-and-libraries)
 6. [Datasets Utilized and Analyzed](#Datasets-Utilized-and-Analayzed)
-   - [Weather Pattern Analysis(Classification)](##weather-pattern-analysis-(classification))
-   - [Real Estate Market Insights(Regression)](##real-estate-market-insights-(regression))
+   - [Weather Pattern Analysis(Classification)](#weather-pattern-analysis-(classification))
+   - [Real Estate Market Insights(Regression)](#real-estate-market-insights-(regression))
 7. [How to run the project](#how-to-run-the-project)
 8. [Made by Bit Bandits](#made-by-bit-bandits)
     - [Members](#members)
@@ -89,7 +89,7 @@ Knowledge Representation is an advanced AI solution that transforms raw data int
 ---
 ## Datasets Utilized and Analayzed
 
-### Weather Pattern Analysis (Classification)
+## Weather Pattern Analysis (Classification)
 
 #### Dataset Overview
 11,586 weather observations with 11 features including temperature, humidity, wind speed, and atmospheric conditions.
@@ -104,7 +104,7 @@ Knowledge Representation is an advanced AI solution that transforms raw data int
 2. Develop predictive models for precipitation based on wind speed data to improve weather forecasting accuracy.
 3. Optimize outdoor activity planning and travel logistics based on visibility and cloud cover predictions.
 ---
-### Real Estate Market Insights (Regression)
+## Real Estate Market Insights (Regression)
 
 #### Dataset Overview
 Comprehensive data on Melbourne's real estate market, including property characteristics, pricing, and geographical information.
