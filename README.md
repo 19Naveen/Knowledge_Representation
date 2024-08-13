@@ -123,19 +123,31 @@ Comprehensive data on Melbourne's real estate market, including property charact
 
 1. Clone the repository
 
-2. Install the required libraries using the following command:
+2. Create a virtual environment (ie., conda) with Python >= 3.8 and activate it.
+
+3. Install the required libraries using the following command:
 
     ```bash
     pip install -r requirements.txt
     ```
 
-3. Run the following command to start the application:
+4. Run the following command to start the application:
 
     ```bash
     streamlit run Main.py
     ```
 
-4. The application will open in the default browser and you can start using it.
+5. The application will open in the default browser and you can start using it.
+
+6. You need to get your free gemini API key from [here](https://aistudio.google.com/app/apikey) and enter it in the app's sidebar and then upload the dataset (ie., .csv file).
+
+7. You can generate insights, Chat with CSV data, and predict the data using the app.
+
+8. Make sure to `Reset Application` and refresh the page before uploading a new dataset.
+
+9. You can even try out our deployed application [Live Demo](https://knowledgerepresentation-bitbandits.streamlit.app/)
+
+10. Any queries or suggestions can be raised as an issue in the repository.
 
 ---
 
