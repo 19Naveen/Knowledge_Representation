@@ -3,9 +3,9 @@ import re
 import chardet
 import pandas as pd
 
-ORIGINAL_PATH = '/workspaces/Knowledge_Representation/Data/CSV/'
-VISUALIZE_PATH = '/workspaces/Knowledge_Representation/Data/Visualized_Charts/'
-PATH = '/workspaces/Knowledge_Representation/Data/Processed_Data/'
+ORIGINAL_PATH = './Data/CSV/'
+VISUALIZE_PATH = './Data/Visualized_Charts/'
+PATH = './Data/Processed_Data/'
 
 def load_csv_files(directory_path, key='string'):
     """
