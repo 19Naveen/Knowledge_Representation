@@ -1,7 +1,6 @@
 CSS = '''
 <style>
     .chat-container {
-        max-width: 800px;
         margin: 0 auto;
         padding: 20px;
     }
@@ -26,7 +25,6 @@ CSS = '''
         object-fit: cover;
     }
     .chat-message .message {
-        max-width: 70%;
         padding: 15px;
         border-radius: 20px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);

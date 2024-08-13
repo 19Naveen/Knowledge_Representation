@@ -16,7 +16,6 @@ def get_tools():
     tools = [
         describe_dataset,
         database_tool,
-        pretty_print_result,
         handle_unexpected_query
     ]
     return tools
@@ -116,7 +115,6 @@ def initChat():
     Returns:
         None
     """
-    st.write(ui.CSS, unsafe_allow_html=True)
     if 'conversation' not in st.session_state:
         st.session_state.conversation = None
     if 'chat_history' not in st.session_state:
@@ -132,12 +130,14 @@ def initChat():
     if 'strict_llm' not in st.session_state:
         st.session_state.strict_llm = None
 
+    print("Chat initialization started")
     get_sqlite_engine()
     tools = get_tools()
     memory = get_memory()
     agent = get_agent(tools)
-    
+
     st.session_state.conversation = get_conversation_chain(agent, tools, memory)
+    print("Chat initialized")
     
 
 def handle_userinput(user_question):
@@ -147,6 +147,9 @@ def handle_userinput(user_question):
 
     for message in st.session_state.chat_history:
         if message["role"] == "human":
-            st.write(ui.user_template(message["content"]), unsafe_allow_html=True)
+            print(ui.user_template(message["content"]))
+            st.markdown(ui.user_template(message["content"]), unsafe_allow_html=True)
         else:
-            st.write(ui.bot_template(message["content"]), unsafe_allow_html=True)
+            print(ui.bot_template(message["content"]))
+            st.markdown(ui.bot_template(message["content"]), unsafe_allow_html=True)
+            

@@ -1,3 +1,4 @@
+from pandas import DataFrame
 from sqlalchemy import create_engine, text
 from langchain_community.utilities import SQLDatabase
 from langchain_community.tools.sql_database.tool import QuerySQLDataBaseTool
@@ -167,10 +168,11 @@ def describe_dataset(query: str):
         >>> describe_dataset("unknown")
         "I'm sorry, I couldn't understand your request about the dataset. Could you please be more specific? You can ask about the dataset's description, statistics, columns, shape, or a sample of the data."
     """
-    df = st.session_state.df
+    df:DataFrame = st.session_state.df
     
     if "describe" in query.lower() or "statistics" in query.lower():
-        description = df.describe().to_string()
+        description = df.describe().to_html()
+        print(description)
         return f"Here's a statistical description of the numerical columns in the dataset:\n{description}"
     
     elif "columns" in query.lower() or "fields" in query.lower():
