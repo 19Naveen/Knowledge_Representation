@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         'Get Help': 'https://github.com/19Naveen/Knowledge_Representation/blob/Master/README.md',
-        'About': "# One spot to know everything about your CSV!"
+        'About': "# One spot to know everyth ing about your CSV!"
     }
 )
 
@@ -40,6 +40,9 @@ with st.sidebar:
                         Processing.preprocess_dataset()
                         st.session_state.file_uploaded = True
                         KnowRep.make_llm(st.session_state.api_key)
+                        sample_file = Tools.load_csv_files(Tools.PATH)
+                        sample_file = sample_file[:5]
+                        st.session_state.target_variable = KnowRep.get_target(sample_file) 
                         st.success("File processed successfully!")
                     else:
                         raise Exception("Failed to save file")
@@ -106,7 +109,7 @@ with tab2:
                     st.error(f"Error: {e}")
     else:
         st.warning("Please upload and process a CSV file first.")
-    if st.session_state.display_insights == True:
+    if st.session_state.display_insights:
         st.markdown("### 📊 Insights")
         st.markdown(st.session_state.insights)
         st.markdown("### 📈 Visualizations")
@@ -188,7 +191,7 @@ with tab4:
                     sample_file = Tools.load_csv_files(Tools.PATH)
                     sample_file = sample_file[:5]
                     df = Tools.load_csv_files(Tools.PATH, key='dataframe')
-                    target_variable = KnowRep.get_target(sample_file)  
+                    target_variable = st.session_state.target_variable    
                     data_type = KnowRep.dataset_type(sample_file)  
                     st.markdown('Enter values for the following features, separated by commas:')
                     st.write(', '.join(df.columns.drop(target_variable) if data_type != 'clustering' else df.columns))

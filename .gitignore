@@ -19,6 +19,7 @@
 .idea
 .ipynb_checkpoints
 .venv
+venv
 __pycache__/
 
 .env

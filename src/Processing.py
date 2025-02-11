@@ -101,7 +101,7 @@ def Visualize_charts(charts):
         x_col, y_col, chart_type = chart['x_axis'], chart['y_axis'], chart['chart_type']
 
         if x_col not in df.columns or (y_col and y_col not in df.columns):
-            print(f"Column(s) not found in the dataframe. Skipping.")
+            print("Column not found in the dataframe. Skipping.")
             continue
 
 
