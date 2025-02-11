@@ -41,7 +41,8 @@ def preprocess_dataset():
             elif df[col].dtype == 'object':
                 imputer = SimpleImputer(strategy='most_frequent', missing_values=np.nan)
             else:
-                print(f"Warning: Column {col} has unsupported data type {df[col].dtype} for imputation. Skipping.")
+                print(f"Warning: Column {col} has unsupported data type {df[col].dtype} for imputation. dropping.")
+                df.drop(columns=[col], inplace=True)
                 continue
             
             df[col] = imputer.fit_transform(df[[col]]).flatten()

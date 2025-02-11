@@ -28,7 +28,7 @@ Tools.make_folders()
 
 # Sidebar
 with st.sidebar:
-    st.image("https://static.vecteezy.com/system/resources/previews/010/794/341/non_2x/purple-artificial-intelligence-technology-circuit-file-free-png.png", width=200)
+    st.image("https://i.ibb.co/vx7frqM8/purple-artificial-intelligence-technology-circuit-file-free-png.webp", width=200, caption="AI Image")
     st.title("KnowRep")
     st.session_state.api_key = st.text_input("Enter your API Key", type="password", value=st.session_state.api_key)
     uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
@@ -153,8 +153,8 @@ with tab3:
 
             
 with tab4:
-
-
+    if 'model_accuracy' not in st.session_state:
+        st.session_state['model_accuracy'] = ''
     def predict():
         """
         Function to predict using the ML model.
@@ -171,7 +171,7 @@ with tab4:
         user_input = st.session_state.user_input
         if user_input.strip() != '':
             with st.spinner("Creating prediction ML model..."):
-                result = Model.prediction_model(df, target_variable, data_type, user_input)
+                result, model_accuracy = Model.prediction_model(df, target_variable, data_type, user_input)
                 st.session_state.result = result
 
 
@@ -205,6 +205,7 @@ with tab4:
         
         if st.session_state.result:
             st.markdown('\n#### :red[Result📝]:')
+            st.markdown(f'The model can predict results with an accuracy of {st.session_state.model_accuracy}')
             st.markdown(f'User Input:  {st.session_state.user_input}')
             st.markdown(f'{st.session_state.result}')
     else:

@@ -5,6 +5,7 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from xgboost import XGBClassifier, XGBRegressor
 from sklearn.model_selection import train_test_split
+from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -87,13 +88,12 @@ def prepare_pipeline(df, target_variable):
     categorical_features = X.select_dtypes(include=['object', 'category']).columns
     
     numeric_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='median')),
         ('scaler', StandardScaler())
     ])
     
     categorical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
-        ('onehot', OneHotEncoder(handle_unknown='ignore'))
+        ('onehot', OneHotEncoder(handle_unknown='ignore')),
+        ('pca', PCA(n_components=0.95))
     ])
     
     preprocessor = ColumnTransformer(
@@ -133,7 +133,8 @@ def prediction_model(df, target_variable, data_type, user_input):
     y_pred = full_pipeline.predict(X_test)
     
     if data_type == 'classification':
-        print('Accuracy:', accuracy_score(y_test, y_pred))
+        model_accuracy = accuracy_score(y_test, y_pred)
+        print('Accuracy:', model_accuracy)
         print(classification_report(y_test, y_pred, target_names=le.classes_ if le else None))
     elif data_type == 'regression':
         print('Mean Absolute Error:', mean_absolute_error(y_test, y_pred))
@@ -155,4 +156,4 @@ def prediction_model(df, target_variable, data_type, user_input):
         for num, label in label_mapping.items():
             result +=  f'\n{num}: {label}'
     
-    return result
+    return result, model_accuracy
