@@ -60,8 +60,8 @@ Knowledge Representation is an advanced AI solution that transforms raw data int
 
 ### Process Flow
 
-<div style="text-align: center;">
-    <img src = "reports/img/Knowrep Process diagram - Bit Bandits.png" height = 80% width = 80% title = "Process Flow" >
+<div align="center">
+    <img src = "reports/img/Knowrep Process diagram - Bit Bandits.png" title = "Process Flow" height="650px" >
 </div>
 
 1. **Upload**: Users upload their CSV files through the Streamlit interface.
@@ -147,7 +147,7 @@ Comprehensive data on Melbourne's real estate market, including property charact
     ```
 
 5. The application will open in the default browser and you can start using it.
-<div style="text-align: center;">
+<div align="center">
     <img src = "reports/img/main_page.png" height = 80% width = 80% title = "Main Page" >
 </div>
 
