@@ -15,7 +15,7 @@
 # Data/Processed_Data/*: Ignores all files in the Data/Processed_Data directory.
 # Data/Visualized_Charts/*: Ignores all files in the Data/Visualized_Charts directory.
 
-
+.vscode
 .idea
 .ipynb_checkpoints
 .venv

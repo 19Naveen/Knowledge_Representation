@@ -115,7 +115,7 @@ with tab2:
         st.markdown("### 📈 Visualizations")
         for file in os.listdir(Tools.VISUALIZE_PATH):
             if file.endswith(".png"):
-                st.image(os.path.join(Tools.VISUALIZE_PATH, file), use_column_width=True)
+                st.image(os.path.join(Tools.VISUALIZE_PATH, file), use_container_width=True)
 
 with tab3:
     st.header("Chat with CSV")
@@ -139,8 +139,8 @@ with tab3:
             user_question = st.chat_input("Ask a question about your data:", key="user_question")
             if user_question:  
                 try:
-                    st.sidebar.write("Chat history")
-                    st.sidebar.write(st.session_state['chat_history'])
+                    # st.sidebar.write("Chat history")
+                    # st.sidebar.write(st.session_state['chat_history'])
                     with chat_container:
                         st.write(ui.CSS, unsafe_allow_html=True)
                         with st.spinner("Processing question..."):
