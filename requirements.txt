@@ -6,6 +6,6 @@ xgboost==2.1.1
 langchain==0.2.13
 langchain-community==0.2.12
 langchain-google-genai==1.0.8
-streamlit==1.41.0
+streamlit==1.44.1
 chardet==5.2.0
 SQLAlchemy==2.0.32

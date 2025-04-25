@@ -21,9 +21,12 @@
 .venv
 venv
 __pycache__/
+.conda
 
 .env
 db.db
 Data/CSV/*
 Data/Processed_Data/*
 Data/Visualized_Charts/*
+
+*.exe
