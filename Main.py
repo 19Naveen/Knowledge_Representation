@@ -1,3 +1,4 @@
+import shutil
 import streamlit as st
 import src.KnowRep as KnowRep
 import src.Tools as Tools
@@ -31,21 +32,38 @@ with st.sidebar:
     st.image("https://i.ibb.co/vx7frqM8/purple-artificial-intelligence-technology-circuit-file-free-png.webp", width=200, caption="AI Image")
     st.title("KnowRep")
     st.session_state.api_key = st.text_input("Enter your API Key", type="password", value=st.session_state.api_key)
-    uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
-    if uploaded_file is not None and st.session_state.api_key and not st.session_state.file_uploaded:
+    isExampleFileSelected = st.toggle("Use Example File", value=False, key="example_file_toggle")
+    uploaded_file = None
+    if isExampleFileSelected:
+        selectedExample = st.selectbox("Select Example", Tools.AVAILABLE_EXAMPLES.keys(), index=0)
+        print("Selected Example File", selectedExample)
+    else:
+        uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
+        
+    if (uploaded_file or isExampleFileSelected) and st.session_state.api_key and (not st.session_state.file_uploaded or isExampleFileSelected):
         if st.button("Process File"):
             with st.spinner("Processing..."):
                 try:
-                    if Tools.save_file(uploaded_file, Tools.ORIGINAL_PATH) == 1:
-                        Processing.preprocess_dataset()
-                        st.session_state.file_uploaded = True
-                        KnowRep.make_llm(st.session_state.api_key)
-                        sample_file = Tools.load_csv_files(Tools.PATH)
-                        sample_file = sample_file[:5]
-                        st.session_state.target_variable = KnowRep.get_target(sample_file) 
-                        st.success("File processed successfully!")
+                    if isExampleFileSelected:
+                        source_path = Tools.AVAILABLE_EXAMPLES[selectedExample]
+                        destination_path = f'{Tools.ORIGINAL_PATH}{selectedExample}.csv'
+                        shutil.copy(source_path, destination_path)
+                        print("Example File Uploaded!")
+                    elif Tools.save_file(uploaded_file, Tools.ORIGINAL_PATH) == 1:
+                        # File save is success
+                        print("File Uploaded!")
+                        pass
                     else:
                         raise Exception("Failed to save file")
+                    
+                    Processing.preprocess_dataset()
+                    st.session_state.file_uploaded = True
+                    KnowRep.make_llm(st.session_state.api_key)
+                    sample_file = Tools.load_csv_files(Tools.PATH)
+                    sample_file = sample_file[:5]
+                    st.session_state.target_variable = KnowRep.get_target(sample_file) 
+                    st.success("File processed successfully!")
+                    
                 except Exception as e:
                     st.error(f"Error: {e}")
 
@@ -83,7 +101,12 @@ with tab1:
                 4. Use the options above to access different features.
                 5. Click :orange[Reset Application] to reset the current workflow and start analyzing a new CSV file.
             """)
-
+    if st.session_state.file_uploaded:
+        st.markdown("##### Uploaded DataFrame")
+        st.markdown("This is a preview of the first 5 rows of the uploaded CSV file.")
+        st.dataframe(Tools.load_csv_files(Tools.PATH, key='dataframe').head(5), use_container_width=True)
+    
+    
 with tab2:
     st.markdown("## Insights Generation")
     st.markdown('''This feature analyzes the uploaded CSV file to provide valuable insights about the data. 
@@ -181,6 +204,9 @@ with tab4:
                 other columns as features. This can be useful for forecasting, classification tasks, or identifying 
                 influential factors in the dataset.''')
     if st.session_state.file_uploaded:
+        st.markdown("##### Sample DataFrame")
+        st.markdown("This is a preview of the first 5 rows of the uploaded CSV file.")
+        st.dataframe(Tools.load_csv_files(Tools.PATH, key='dataframe').head(5), use_container_width=True)
         if 'result' not in st.session_state:
             st.session_state.result = ''
         if 'user_input' not in st.session_state:

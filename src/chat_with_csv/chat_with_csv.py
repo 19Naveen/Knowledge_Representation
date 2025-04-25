@@ -69,7 +69,8 @@ def get_agent(tools):
     )
 
     llm_chain = LLMChain(llm=st.session_state.strict_llm, prompt=prompt, verbose=True)
-    agent = ZeroShotAgent(llm_chain=llm_chain, tools=tools, verbose=True)
+    # agent = ZeroShotAgent(llm_chain=llm_chain, tools=tools, verbose=True)
+    agent = ZeroShotAgent(llm_chain=llm_chain, allowed_tools=[tool.name for tool in tools],tools=tools, verbose=True)
     return agent
 
 

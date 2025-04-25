@@ -6,6 +6,13 @@ import pandas as pd
 ORIGINAL_PATH = './Data/CSV/'
 VISUALIZE_PATH = './Data/Visualized_Charts/'
 PATH = './Data/Processed_Data/'
+EXAMPLES_PATH = "./examples/"
+
+AVAILABLE_EXAMPLES = {
+    'Churn Dataset': os.path.join(EXAMPLES_PATH, "Churn_Modelling.csv"),
+    'MELB Real Estate': os.path.join(EXAMPLES_PATH, "melb_data.csv"),
+    'Spotify Data': os.path.join(EXAMPLES_PATH, "Most_Streamed_Spotify_Songs_2024.csv")
+}
 
 def load_csv_files(directory_path, key='string'):
     """
@@ -34,6 +41,20 @@ def load_csv_files(directory_path, key='string'):
         sample_data = df.head().to_dict(orient='records')
         return '\n'.join(f"column{i+1} = {{{', '.join(f'{k!r}: {v}' for k, v in record.items())}}},"
                          for i, record in enumerate(sample_data))
+
+def load_example_file(selected_name, key='string'):
+    if selected_name == 'Churn Dataset':
+        src_path = os.path.join(EXAMPLES_PATH, "Churn_Modeling.csv")
+    elif selected_name == 'MELB Real Estate':
+        src_path = os.path.join(EXAMPLES_PATH, "melb_data.csv")
+    elif selected_name == 'Spotify Data':
+        src_path = os.path.join(EXAMPLES_PATH, "Most Streamed Spotify Songs 2024.csv")
+    else:
+        raise ValueError("Invalid example name")
+    
+    
+    return src_path
+
 
 
 def fetch_columns():

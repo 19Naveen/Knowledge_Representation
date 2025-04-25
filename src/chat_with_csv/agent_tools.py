@@ -11,6 +11,7 @@ from langchain.chains.sql_database.query import create_sql_query_chain
 import streamlit as st
 import src.Tools as Tools 
 
+@st.cache_resource
 def get_sqlite_engine():
     """
     Returns a SQLAlchemy engine object for database operations.
@@ -169,7 +170,7 @@ def describe_dataset(query: str):
         "I'm sorry, I couldn't understand your request about the dataset. Could you please be more specific? You can ask about the dataset's description, statistics, columns, shape, or a sample of the data."
     """
     df:DataFrame = st.session_state.df
-    
+    print(str)
     if "describe" in query.lower() or "statistics" in query.lower():
         description = df.describe().to_html()
         print(description)
