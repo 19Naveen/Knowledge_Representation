@@ -154,8 +154,8 @@ def predict_model(user_input, column_dropped, columns, data_type, le):
     with open("./model/my_pipeline.pkl", "rb") as f:
         full_pipeline = pickle.load(f)
 
-    user_input_list = user_input.values()
-    user_df = pd.DataFrame([user_input_list], columns=column_dropped)
+    user_input_list = list(user_input.values())
+    user_df = pd.DataFrame([user_input_list], columns=columns)
     user_prediction = full_pipeline.predict(user_df)
     user_prediction = np.round(user_prediction).astype(int)
     

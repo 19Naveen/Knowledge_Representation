@@ -30,10 +30,10 @@ def preprocess_dataset():
         raise ValueError("All columns were empty and have been removed.")
     
     for col in df.columns:
-        if df[col].isnull().all():
-            print(f"Warning: Column '{col}' is entirely empty. Dropping this column.")
-            df.drop(col, axis=1, inplace=True)
-            continue
+        # if df[col].isnull().all():
+        #     print(f"Warning: Column '{col}' is entirely empty. Dropping this column.")
+        #     df.drop(col, axis=1, inplace=True)
+        #     continue
         
         if df[col].isnull().any():
             if pd.api.types.is_numeric_dtype(df[col]):
