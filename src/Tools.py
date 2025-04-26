@@ -55,6 +55,18 @@ def load_example_file(selected_name, key='string'):
     
     return src_path
 
+def column_dtype(column):
+    column_dtype = {'Numerical':[], 'Categorical':[], 'DateTime':[]}
+    df = load_csv_files(PATH, key='dataframe')
+    for col in column:
+        if pd.api.types.is_numeric_dtype(df[col]) or pd.api.types.is_signed_integer_dtype(df[col]):
+            column_dtype['Numerical'].append(col)
+        elif pd.api.types.is_string_dtype(df[col]) or pd.api.types.is_object_dtype(df[col]):
+            column_dtype['Categorical'].append(col)
+        else:
+            column_dtype['DateTime'].append(col)
+
+    return column_dtype
 
 
 def fetch_columns():

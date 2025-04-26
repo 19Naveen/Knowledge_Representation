@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.svm import SVC
+import pickle
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from xgboost import XGBClassifier, XGBRegressor
@@ -59,7 +60,7 @@ def model_selection(data_type, size):
     Returns:
     sklearn estimator: A model suitable for the given problem type and dataset size.
     """
-    if data_type == 'classification':
+    if data_type == 'Classification':
         return classification_model_selection(size)
     else:
         return regression_model_selection(size)
@@ -92,8 +93,8 @@ def prepare_pipeline(df, target_variable):
     ])
     
     categorical_transformer = Pipeline(steps=[
-        ('onehot', OneHotEncoder(handle_unknown='ignore')),
-        ('pca', PCA(n_components=0.95))
+        ('onehot', OneHotEncoder(handle_unknown='ignore'))
+        #,('pca', PCA(n_components=0.95))
     ])
     
     preprocessor = ColumnTransformer(
@@ -105,7 +106,7 @@ def prepare_pipeline(df, target_variable):
     return X, y, preprocessor, le
 
 
-def prediction_model(df, target_variable, data_type, user_input):
+def create_model(df, target_variable, data_type):
     """
     Train a prediction model, evaluate it, and make predictions on user input.
     
@@ -116,11 +117,12 @@ def prediction_model(df, target_variable, data_type, user_input):
     user_input (str): Comma-separated string of user input for prediction.
     
     Returns:
-    str: A string containing the model evaluation metrics and the prediction for the user input.
+    Accuracy, le: A string containing the model evaluation metrics and labelEncoder.
     """
     X, y, preprocessor, le = prepare_pipeline(df, target_variable)
-    
+    data_type = data_type.lower()
     size = len(df)
+    model_accuracy = 'Information Unavailable at this Moment'
     model = model_selection(data_type, size)
     
     full_pipeline = Pipeline([
@@ -128,27 +130,38 @@ def prediction_model(df, target_variable, data_type, user_input):
         ('model', model)
     ])
     
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    full_pipeline.fit(X_train, y_train)    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
+    full_pipeline.fit(X_train, y_train)   
+    with open("./model/my_pipeline.pkl", "wb") as f:
+        pickle.dump(full_pipeline, f)
+
     y_pred = full_pipeline.predict(X_test)
-    
     if data_type == 'classification':
-        model_accuracy = accuracy_score(y_test, y_pred)
-        print('Accuracy:', model_accuracy)
-        print(classification_report(y_test, y_pred, target_names=le.classes_ if le else None))
+        accuracy = accuracy_score(y_test, y_pred)
+        model_accuracy = f"Accuracy Score: {accuracy}"
     elif data_type == 'regression':
-        print('Mean Absolute Error:', mean_absolute_error(y_test, y_pred))
-        print('Mean Squared Error:', mean_squared_error(y_test, y_pred))
-        print('R-squared:', r2_score(y_test, y_pred))
+        mae = mean_absolute_error(y_test, y_pred)
+        mse = mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
+        model_accuracy = f"Mean Absolute Error: {mae}\nMean Squared Error: {mse}\nR-squared: {r2}"
+    else:
+        raise ValueError(f"Invalid data_type. Expected 'classification' or 'regression' but got {data_type}.")
     
-    user_input_list = user_input.split(',')
-    user_df = pd.DataFrame([user_input_list], columns=X.columns)
+    return model_accuracy, le
+
+def predict_model(user_input, column_dropped, columns, data_type, le):
+    data_type = data_type.lower()
+    with open("./model/my_pipeline.pkl", "rb") as f:
+        full_pipeline = pickle.load(f)
+
+    user_input_list = user_input.values()
+    user_df = pd.DataFrame([user_input_list], columns=column_dropped)
     user_prediction = full_pipeline.predict(user_df)
     user_prediction = np.round(user_prediction).astype(int)
     
     if data_type == 'classification' and le:
         user_prediction = le.inverse_transform(user_prediction)
-    result = f'Predicted {target_variable}: {user_prediction[0]}'
+    result = f'Predicted {column_dropped}: {user_prediction[0]}'
     
     if le:
         label_mapping = dict(zip(le.classes_, le.transform(le.classes_)))
@@ -156,4 +169,4 @@ def prediction_model(df, target_variable, data_type, user_input):
         for num, label in label_mapping.items():
             result +=  f'\n{num}: {label}'
     
-    return result, model_accuracy
+    return result

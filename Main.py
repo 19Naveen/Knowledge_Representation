@@ -1,3 +1,4 @@
+import os
 import shutil
 import streamlit as st
 import src.KnowRep as KnowRep
@@ -5,9 +6,8 @@ import src.Tools as Tools
 import src.Model as Model
 import src.Processing as Processing
 import src.chat_with_csv.chat_with_csv as chat_with_csv
-import os
 import src.chat_with_csv.ui_template as ui
-
+from src.Model import create_model, predict_model
 
 st.set_page_config(
     page_title="KnowRep",
@@ -29,6 +29,7 @@ Tools.make_folders()
 
 # Sidebar
 with st.sidebar:
+    
     st.image("https://i.ibb.co/vx7frqM8/purple-artificial-intelligence-technology-circuit-file-free-png.webp", width=200, caption="AI Image")
     st.title("KnowRep")
     st.session_state.api_key = st.text_input("Enter your API Key", type="password", value=st.session_state.api_key)
@@ -61,7 +62,6 @@ with st.sidebar:
                     KnowRep.make_llm(st.session_state.api_key)
                     sample_file = Tools.load_csv_files(Tools.PATH)
                     sample_file = sample_file[:5]
-                    st.session_state.target_variable = KnowRep.get_target(sample_file) 
                     st.success("File processed successfully!")
                     
                 except Exception as e:
@@ -176,64 +176,95 @@ with tab3:
 
             
 with tab4:
-    if 'model_accuracy' not in st.session_state:
-        st.session_state['model_accuracy'] = ''
-    def predict():
-        """
-        Function to predict using the ML model.
-
-        This function takes the user input from the session state and uses it as input for the prediction model.
-        The result of the prediction is stored in the session state.
-
-        Parameters:
-            None
-
-        Returns:
-            None
-        """
-        user_input = st.session_state.user_input
-        if user_input.strip() != '':
-            with st.spinner("Creating prediction ML model..."):
-                result, model_accuracy = Model.prediction_model(df, target_variable, data_type, user_input)
-                st.session_state.result = result
-
+    for key, default in {
+        'model_accuracy': '',
+        'submitted': None,
+        'target_column': 'Auto',
+        'prediction_type': 'Auto',
+        'model_trained': None,
+        'result': None
+    }.items():
+        if key not in st.session_state:
+            st.session_state[key] = default
 
     st.header("ML Prediction")
     st.markdown('''This feature leverages machine learning algorithms to make predictions based on the uploaded CSV data. 
                 Users can select a target column, and the system will attempt to predict values for that column using 
                 other columns as features. This can be useful for forecasting, classification tasks, or identifying 
                 influential factors in the dataset.''')
+
     if st.session_state.file_uploaded:
         st.markdown("##### Sample DataFrame")
         st.markdown("This is a preview of the first 5 rows of the uploaded CSV file.")
         st.dataframe(Tools.load_csv_files(Tools.PATH, key='dataframe').head(5), use_container_width=True)
-        if 'result' not in st.session_state:
-            st.session_state.result = ''
-        if 'user_input' not in st.session_state:
-            st.session_state.user_input = ''
-        if st.button("Run ML Prediction", use_container_width=True):
-            with st.spinner("Running prediction model..."):
-                try: 
-                    sample_file = Tools.load_csv_files(Tools.PATH)
-                    sample_file = sample_file[:5]
-                    df = Tools.load_csv_files(Tools.PATH, key='dataframe')
-                    target_variable = st.session_state.target_variable    
-                    data_type = KnowRep.dataset_type(sample_file)  
-                    st.markdown('Enter values for the following features, separated by commas:')
-                    st.write(', '.join(df.columns.drop(target_variable) if data_type != 'clustering' else df.columns))
 
-                    st.text_input("Enter your input seperated by commas[,]", 
-                                               key="user_input", 
-                                               on_change= predict)
+        if not st.session_state.model_trained:
+            columns_display = ['Auto'] + [col for col in Tools.fetch_columns()]
+            st.session_state.target_column = st.selectbox('Select Target Column', columns_display, index=0)
+            st.session_state.prediction_type = st.selectbox('Select Prediction Type', ['Auto', 'Classification', 'Regression'], index=0)
+
+        if not st.session_state.model_trained and st.button('Train ML Model', use_container_width=True):
+            with st.spinner("Training the model..."):
+                try:
+                    df = Tools.load_csv_files(Tools.PATH, key='dataframe')
+                    if st.session_state.target_column == 'Auto':
+                        st.session_state.target_column = KnowRep.get_target(df.head(5).to_string())
+                    print('Target Column:', st.session_state.target_column)
+                    if st.session_state.prediction_type == 'Auto':
+                        st.session_state.prediction_type = KnowRep.dataset_type(df.head(5).to_string())
+                    print('Prediction Type:', st.session_state.prediction_type)
+
+                    accuracy, le = create_model(
+                        df=df,
+                        target_variable=st.session_state.target_column,
+                        data_type=st.session_state.prediction_type
+                    )
+                    st.session_state.model_accuracy = accuracy
+                    st.session_state.labelEncoder = le
+                    st.session_state.model_trained = True
                     
                 except Exception as e:
-                    st.error(f"Error: {e}")
-        
+                    st.error(f"Error during training: {e}")
+
+        print('ml', st.session_state)
+        if st.session_state.model_accuracy:
+            st.success(f"Model trained successfully with accuracy: {st.session_state.model_accuracy}")
+
+        if st.session_state.model_trained:
+            with st.form("Prediction Input Form"):
+                st.write("Enter data for each column:")
+                input_data = {}
+                prediction_columns = [col for col in Tools.fetch_columns()]
+                prediction_columns.remove(st.session_state.target_column)
+                column_types = Tools.column_dtype(prediction_columns)
+                for col in prediction_columns:
+                    if col in column_types['Numerical']:
+                        input_data[col] = st.number_input(f"{col}:", key=f"num_{col}")
+                    elif col in column_types['DateTime']:
+                        input_data[col] = st.date_input(f"{col}:", key=f"date_{col}")
+                    else:
+                        input_data[col] = st.text_input(f"{col}:", key=f"text_{col}")
+                submitted = st.form_submit_button("Predict")
+
+            if submitted:
+                print('Submitted:', input_data)
+                with st.spinner("Running prediction..."):
+                    try:
+                        st.session_state.result = predict_model(
+                            user_input=input_data,
+                            column_dropped=st.session_state.target_column,
+                            data_type=st.session_state.prediction_type,
+                            le=st.session_state.labelEncoder,
+                            columns=prediction_columns
+                        )
+                        st.success("Prediction completed successfully!")
+                    except Exception as e:
+                        st.error(f"Error during prediction: {e}")
+
         if st.session_state.result:
-            st.markdown('\n#### :red[Result📝]:')
-            st.markdown(f'The model can predict results with an accuracy of {st.session_state.model_accuracy}')
-            st.markdown(f'User Input:  {st.session_state.user_input}')
-            st.markdown(f'{st.session_state.result}')
+            st.markdown("### Prediction Result")
+            st.markdown(f"**Prediction:** {st.session_state.result}")
+
     else:
         st.warning("Please upload and process a CSV file first.")
 

@@ -22,6 +22,7 @@
 venv
 __pycache__/
 .conda
+model
 
 .env
 db.db

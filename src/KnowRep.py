@@ -42,7 +42,6 @@ def get_target(sample_data):
         str: The name of the target column
     """
     columns = Tools.fetch_columns()
-    
     prompt = '''
         Given a dataset with the following columns:
         {columns}
@@ -51,13 +50,14 @@ def get_target(sample_data):
         {sample_data}
         
         Determine which column in this dataset is the target variable and return only the target name.
-        return : column_name
+        You should only return the column name without any additional text.
+        Example: 'Exited' and not 'Exited is the target column', 'Exited\n'
         '''  
     query_template = PromptTemplate(template=prompt, input_variables=["columns", "sample_data"])
     query = query_template.format(columns=columns, sample_data=sample_data)
     print("This is query template", query)
     response = st.session_state.llm.invoke(query)
-    return response.content
+    return response.content.replace("\n", "").strip()
 
 
 def dataset_type(csv):
@@ -79,7 +79,7 @@ def dataset_type(csv):
     query_template = PromptTemplate(template=prompt, input_variables=["dataset", "column"])
     query = query_template.format(dataset=csv, column=Tools.fetch_columns())
     response = st.session_state.llm.invoke(query)
-    return response.content
+    return response.content.replace("\n", "").strip()
 
 
 def generate_insights(csv):
