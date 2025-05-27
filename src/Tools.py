@@ -7,6 +7,7 @@ ORIGINAL_PATH = './Data/CSV/'
 VISUALIZE_PATH = './Data/Visualized_Charts/'
 PATH = './Data/Processed_Data/'
 EXAMPLES_PATH = "./examples/"
+MODEL_PATH = "./model/"
 
 AVAILABLE_EXAMPLES = {
     'Churn Dataset': os.path.join(EXAMPLES_PATH, "Churn_Modelling.csv"),
@@ -155,7 +156,7 @@ def save_file(uploadedfile, path):
 
 def make_folders():
     """Create necessary directories if they don't exist."""
-    for directory in [ORIGINAL_PATH, PATH, VISUALIZE_PATH]:
+    for directory in [ORIGINAL_PATH, PATH, VISUALIZE_PATH, MODEL_PATH]:
         os.makedirs(directory, exist_ok=True)
 
 
