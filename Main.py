@@ -33,7 +33,7 @@ with st.sidebar:
     st.title("KnowRep")
     
     st.session_state.selected_llm = st.selectbox("Select Model", KnowRep.MODEL_LIST, index=0)
-    if st.session_state.selected_llm == "gemini-2.0-flash":
+    if st.session_state.selected_llm.startswith("gemini"):
         st.session_state.api_key = st.text_input("Enter your API Key", type="password", value=st.session_state.api_key)
     else:
         st.session_state.api_key = ""
@@ -44,8 +44,9 @@ with st.sidebar:
         print("Selected Example File", selectedExample)
     else:
         uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
-        
-    if (uploaded_file or isExampleFileSelected) and (st.session_state.selected_llm!="gemini-2.0-flash" or st.session_state.api_key) and (not st.session_state.file_uploaded or isExampleFileSelected):
+    
+    # if the file uploaded or selected and if ollama model is selected or gemini model with api key provided
+    if (uploaded_file or isExampleFileSelected) and (not st.session_state.selected_llm.startswith("gemini") or st.session_state.api_key) and (not st.session_state.file_uploaded or isExampleFileSelected):
         if st.button("Process File"):
             with st.spinner("Processing..."):
                 try:

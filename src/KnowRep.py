@@ -6,7 +6,12 @@ import streamlit as st
 import ollama
 
 MODEL_LIST = [
-    "gemini-2.0-flash", # Except for this model, all other models are from Ollama
+    # Gemini Models
+    "gemini-2.0-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    
+    # Ollama Models
     # *ollama.list() # List all available models from Ollama
     "llama3.2"
 ]
@@ -21,16 +26,16 @@ def make_llm(selected_model, API_KEY):
     """
     print("Available Models: ", MODEL_LIST)
     try:
-        if selected_model == "gemini-2.0-flash":
+        if selected_model.startswith("gemini"):
             GOOGLE_PALM_API_KEY = API_KEY
             st.session_state.llm = ChatGoogleGenerativeAI(
                 google_api_key=GOOGLE_PALM_API_KEY,
-                model="gemini-2.0-flash",
+                model=selected_model,
                 temperature=0.5
             )
             st.session_state.strict_llm = ChatGoogleGenerativeAI(
                 google_api_key=GOOGLE_PALM_API_KEY,
-                model="gemini-2.0-flash",
+                model=selected_model,
                 temperature=0.3
             )
         elif selected_model in MODEL_LIST:
