@@ -31,7 +31,12 @@ Tools.make_folders()
 with st.sidebar:
     st.image("https://i.ibb.co/vx7frqM8/purple-artificial-intelligence-technology-circuit-file-free-png.webp", width=200, caption="AI Image")
     st.title("KnowRep")
-    st.session_state.api_key = st.text_input("Enter your API Key", type="password", value=st.session_state.api_key)
+    
+    st.session_state.selected_llm = st.selectbox("Select Model", KnowRep.MODEL_LIST, index=0)
+    if st.session_state.selected_llm == "gemini-2.0-flash":
+        st.session_state.api_key = st.text_input("Enter your API Key", type="password", value=st.session_state.api_key)
+    else:
+        st.session_state.api_key = ""
     isExampleFileSelected = st.toggle("Use Example File", value=False, key="example_file_toggle")
     uploaded_file = None
     if isExampleFileSelected:
@@ -40,7 +45,7 @@ with st.sidebar:
     else:
         uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
         
-    if (uploaded_file or isExampleFileSelected) and st.session_state.api_key and (not st.session_state.file_uploaded or isExampleFileSelected):
+    if (uploaded_file or isExampleFileSelected) and (st.session_state.selected_llm!="gemini-2.0-flash" or st.session_state.api_key) and (not st.session_state.file_uploaded or isExampleFileSelected):
         if st.button("Process File"):
             with st.spinner("Processing..."):
                 try:
@@ -58,7 +63,7 @@ with st.sidebar:
                     
                     Processing.preprocess_dataset()
                     st.session_state.file_uploaded = True
-                    KnowRep.make_llm(st.session_state.api_key)
+                    KnowRep.make_llm(st.session_state.selected_llm, st.session_state.api_key)
                     sample_file = Tools.load_csv_files(Tools.PATH)
                     sample_file = sample_file[:5]
                     st.session_state.target_variable = KnowRep.get_target(sample_file) 

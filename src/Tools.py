@@ -91,12 +91,13 @@ def get_dtype():
 
 
 import re
-def extract_visualization_info(response_content):
+def extract_visualization_info(response_content, verbose=False):
     """
     Extract visualization information from a response string.
 
     Args:
         response_content (str): String containing visualization details.
+        verbose (bool): If True, print the extracted information.
 
     Returns:
         List of dictionaries with visualization info.
@@ -118,6 +119,22 @@ def extract_visualization_info(response_content):
             'info': insights[i] if i < len(insights) else None  # Handle case where there are more columns than insights
         }
         result.append(info)
+    if verbose:
+        print("Given Response:")
+        print(response_content)
+        print("Extracted Visualization Information:")
+        for i, info in enumerate(result):
+            print(f"Visualization {i+1}:")
+            print(f"  X-axis: {info['x_axis']}")
+            print(f"  Y-axis: {info['y_axis']}")
+            print(f"  Chart Type: {info['chart_type']}")
+            print(f"  Insight: {info['info']}")
+            print()
+        print("End of Extracted Visualization Information")
+        if len(result) == 0:
+            print("No visualizations found in the response.")
+        else:
+            print(f"Total {len(result)} visualizations found in the response.", result)
     return result
 
 

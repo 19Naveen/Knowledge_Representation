@@ -97,12 +97,14 @@ def Visualize_charts(charts):
     plt.rcParams['font.size'] = 12
     plt.rcParams['axes.titlesize'] = 16
     plt.rcParams['axes.labelsize'] = 14
+    print("Available columns in the dataset:", df.columns.tolist())
+    print("Generating charts...")
     
     for chart in charts:
         x_col, y_col, chart_type = chart['x_axis'], chart['y_axis'], chart['chart_type']
 
         if x_col not in df.columns or (y_col and y_col not in df.columns):
-            print("Column not found in the dataframe. Skipping.")
+            print("Column not found in the dataframe. Skipping.", x_col, y_col)
             continue
 
 

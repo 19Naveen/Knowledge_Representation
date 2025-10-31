@@ -58,6 +58,8 @@ def remove_markdown_code_block(sql_code):
     Returns:
     str: The SQL code string without Markdown code block formatting.
     """
+    if sql_code.startswith("```sqlite") and sql_code.endswith("```"):
+        return sql_code[9:-3].strip()
     if sql_code.startswith("```sql") and sql_code.endswith("```"):
         return sql_code[6:-3].strip()
     
@@ -77,7 +79,7 @@ def pretty_print_result(user_question:str, result: str = ''):
         str: The formatted result of the SQL query.
     """
     
-    strict_llm = st.session_state.strict_llm
+    
     result = result.strip()
     prompt = PromptTemplate.from_template(
         """You are an expert that can reformate the SQL result to make it more readable for the user.
@@ -92,7 +94,7 @@ def pretty_print_result(user_question:str, result: str = ''):
         """
     )
     chain = (
-        RunnablePassthrough.assign(user_question=user_question).assign(result=result) | prompt | strict_llm | StrOutputParser()
+        RunnablePassthrough.assign(user_question=user_question).assign(result=result) | prompt | st.session_state.strict_llm | StrOutputParser()
     )
 
     return chain.invoke({"user_question": user_question, "result": result})
@@ -143,6 +145,51 @@ def handle_unexpected_query(query: str):
     return "I'm sorry, I couldn't understand your request. Could you please rephrase or provide more information?"
 
 @tool
+def handle_greetings(query: str):
+    """
+    Handles greetings from the user and provides a friendly response.
+
+    Parameters:
+        query (str): The user's greeting.
+
+    Returns:
+        str: A friendly response to the user's greeting.
+        
+    Examples:
+    
+        >>> handle_greetings("Hello")
+        "Hello! How can I assist you today?"
+        
+        >>> handle_greetings("Hi")
+        "Hello! How can I assist you today?"
+    """
+    return "Hello! How can I assist you today?"
+
+@tool
+def handle_farewell(query: str):
+    """
+    Handles farewells from the user and provides a friendly response.
+
+    Parameters:
+        query (str): The user's farewell.
+
+    Returns:
+        str: A friendly response to the user's farewell.
+        
+    Examples:
+        
+        >>> handle_farewell("Goodbye")
+        "Goodbye! If you have any more questions, feel free to ask. Have a great day!"
+        
+        >>> handle_farewell("See you later")
+        "Goodbye! If you have any more questions, feel free to ask. Have a great day!"
+        
+        >>> handle_farewell("Bye")
+        "Goodbye! If you have any more questions, feel free to ask. Have a great day!"
+    """
+    return "Goodbye! If you have any more questions, feel free to ask. Have a great day!"
+
+@tool
 def describe_dataset(query: str):
     """
     Use this function to describe the dataset, provide basic statistics, or answer questions about the structure of the data without performing SQL queries.
@@ -154,6 +201,9 @@ def describe_dataset(query: str):
         str: The response to the query or question about the dataset.
 
     Examples:
+        >>> describe_dataset("Can you describe the dataset?")
+        "Here's a statistical description of the numerical columns in the dataset: ..."
+        
         >>> describe_dataset("describe")
         "Here's a statistical description of the numerical columns in the dataset: ..."
         

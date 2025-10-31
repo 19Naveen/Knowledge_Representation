@@ -1,32 +1,54 @@
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 import src.Tools as Tools
 import streamlit as st
+import ollama
 
-llm = None
-strict_llm = None
+MODEL_LIST = [
+    "gemini-2.0-flash", # Except for this model, all other models are from Ollama
+    # *ollama.list() # List all available models from Ollama
+    "llama3.2"
+]
 
-def make_llm(API_KEY):
+def make_llm(selected_model, API_KEY):
     """
-    Initialize the LLM model with the provided API key.
+    Initialize the LLM (Language Model) based on the selected model and API key.
     
     Args:
+        selected_model (str): The selected model name
         API_KEY (str): The Google Palm API key
     """
+    print("Available Models: ", MODEL_LIST)
     try:
-        global llm
-        GOOGLE_PALM_API_KEY = API_KEY
-        st.session_state.llm = ChatGoogleGenerativeAI(
-            google_api_key=GOOGLE_PALM_API_KEY,
-            model="gemini-2.0-flash",
-            temperature=0.5
-        )
-        global strict_llm
-        st.session_state.strict_llm = ChatGoogleGenerativeAI(
-            google_api_key=GOOGLE_PALM_API_KEY,
-            model="gemini-2.0-flash",
-            temperature=0.3
-        )
+        if selected_model == "gemini-2.0-flash":
+            GOOGLE_PALM_API_KEY = API_KEY
+            st.session_state.llm = ChatGoogleGenerativeAI(
+                google_api_key=GOOGLE_PALM_API_KEY,
+                model="gemini-2.0-flash",
+                temperature=0.5
+            )
+            st.session_state.strict_llm = ChatGoogleGenerativeAI(
+                google_api_key=GOOGLE_PALM_API_KEY,
+                model="gemini-2.0-flash",
+                temperature=0.3
+            )
+        elif selected_model in MODEL_LIST:
+            # No API key is needed for Ollama models
+            st.session_state.llm = ChatOllama(
+                model=selected_model,
+                temperature=0.5,
+                verbose=True
+            )
+            st.session_state.strict_llm = ChatOllama(
+                model=selected_model,
+                temperature=0.3,
+                verbose=True
+            )
+        else:
+            raise ValueError("Invalid model name selected")
+
+        print("Initialized Model: ", selected_model)
     except Exception as e:
         print(f"Error initializing LLM: {e}")
 
@@ -157,5 +179,5 @@ def generate_and_extract_charts(df):
 
     prompt = prompt_template.format(columns=columns_str, stats=stats_str, dtypes=dtypes_str)
     response = st.session_state.llm.invoke(prompt)
-    visualizations = Tools.extract_visualization_info(response.content)
+    visualizations = Tools.extract_visualization_info(response.content, verbose=True)
     return visualizations

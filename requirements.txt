@@ -9,3 +9,4 @@ langchain-google-genai==1.0.8
 streamlit==1.44.1
 chardet==5.2.0
 SQLAlchemy==2.0.32
+langchain-ollama==0.1.3
