@@ -1,0 +1,11 @@
+pandas
+scikit-learn
+matplotlib
+seaborn
+xgboost
+langchain
+langchain-community
+langchain-google-genai
+streamlit
+chardet
+SQLAlchemy

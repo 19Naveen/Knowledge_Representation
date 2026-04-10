@@ -1,13 +1,13 @@
 import os
 import shutil
 import streamlit as st
-import src.KnowRep as KnowRep
-import src.Tools as Tools
-import src.Model as Model
-import src.Processing as Processing
-import src.chat_with_csv.chat_with_csv as chat_with_csv
-import src.chat_with_csv.ui_template as ui
-from src.Model import create_model, predict_model
+import backend.src.KnowRep as KnowRep
+import backend.src.Tools as Tools
+import backend.src.Model as Model
+import backend.src.Processing as Processing
+import backend.src.chat_with_csv.chat_with_csv as chat_with_csv
+import backend.src.chat_with_csv.ui_template as ui
+from backend.src.Model import create_model, predict_model
 
 st.set_page_config(
     page_title="KnowRep",
