@@ -14,3 +14,11 @@ Data/Processed_Data/*
 Data/Visualized_Charts/*
 
 *.exe
+node_modules/
+Documentation/
+*.log
+*.tmp
+*.bak
+*.swp
+
+.DS_Store

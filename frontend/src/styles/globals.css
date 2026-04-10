@@ -1,0 +1,110 @@
+@import "./tokens.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-bg text-text font-sans antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Better focus styles */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-blue-500;
+  }
+
+  /* Improved form elements */
+  input,
+  textarea,
+  select {
+    @apply bg-surface text-text;
+  }
+
+  /* Typography refinements */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading font-semibold tracking-tight;
+  }
+  
+  /* Monospace for data */
+  code, pre, .mono {
+    @apply font-mono;
+  }
+  
+  /* Tabular numbers for data */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  
+  /* Selection */
+  ::selection {
+    @apply bg-accent/20 text-text;
+  }
+  
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    @apply size-2;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-surface-2;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-tertiary;
+  }
+}
+
+@layer components {
+  /* Card variants */
+  .card {
+    @apply bg-surface rounded-xl border border-border-subtle p-5 shadow-soft-sm;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .card-hover {
+    @apply hover:border-border hover:shadow-soft-md hover:-translate-y-0.5;
+  }
+  
+  /* Interactive elements */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-white hover:bg-primary-light active:scale-[0.98];
+  }
+  
+  .btn-secondary {
+    @apply bg-surface-2 text-text hover:bg-surface-3 border border-border;
+  }
+  
+  .btn-ghost {
+    @apply text-text-secondary hover:bg-surface-2 hover:text-text;
+  }
+  
+  /* Input fields */
+  .input {
+    @apply w-full px-3 py-2 text-sm bg-surface border border-border rounded-lg transition-all duration-200;
+    @apply placeholder:text-text-tertiary;
+    @apply focus:border-accent focus:ring-2 focus:ring-accent/20;
+  }
+  
+  /* Table styles */
+  .table-row {
+    @apply border-b border-border-subtle transition-colors hover:bg-surface-2/50;
+  }
+}
