@@ -1,18 +1,19 @@
-export function PageHeader({ title, subtitle, actions, breadcrumbs }: { title: string; subtitle?: string; actions?: React.ReactNode; breadcrumbs?: string[] }) {
+import { ReactNode } from "react";
+
+interface PageHeaderProps {
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+}
+
+export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
   return (
-    <header className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+    <div className="flex flex-col gap-4 border-b border-subtle bg-surface px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        {breadcrumbs && (
-          <nav className="mb-2 flex items-center gap-1.5 text-xs text-text-tertiary">
-            {breadcrumbs.map((crumb, i) => (
-              <span key={i}>{i > 0 && <span className="mx-1">/</span>}{crumb}</span>
-            ))}
-          </nav>
-        )}
-        <h1 className="text-2xl font-heading font-semibold tracking-tight text-text">{title}</h1>
+        <h1 className="text-xl font-semibold text-text">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-text-secondary">{subtitle}</p>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
-    </header>
+      {actions && <div className="flex items-center gap-3">{actions}</div>}
+    </div>
   );
 }

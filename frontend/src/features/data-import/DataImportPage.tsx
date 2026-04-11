@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { PageHeader } from "../../components/shared/PageHeader";
 import { Database, FileSpreadsheet, Activity, Clock, Upload, Plus, Table, CheckCircle2, ArrowRight, Server, Key, User } from "lucide-react";
+import { datasets, workspace } from "../../lib/mocks/data";
+
 
 type Step = 'list' | 'db_creds' | 'preview' | 'success';
 
@@ -42,7 +44,7 @@ export function DataImportPage() {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-[calc(100vh-5rem)] flex-col overflow-hidden">
       <PageHeader 
         title="Data Import" 
         subtitle="Manage regular database connections or perform ad-hoc file uploads."
