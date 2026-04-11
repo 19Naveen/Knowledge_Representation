@@ -43,7 +43,8 @@ const queryHistory: HistoryItem[] = [
 ];
 
 export function QueryStudioPage() {
-  const activeDataset = datasets.find((item) => item.id === workspace.activeDatasetId) ?? datasets[0];
+  const [selectedDatasetId, setSelectedDatasetId] = useState(workspace.activeDatasetId || (datasets && datasets[0]?.id));
+  const activeDataset = datasets.find((item) => item.id === selectedDatasetId) ?? datasets[0];
   const [messages, setMessages] = useState<Message[]>(askDataConversation as Message[]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -107,34 +108,29 @@ export function QueryStudioPage() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-10rem)] flex-col overflow-hidden">
+    <div className="flex h-[calc(100vh-5rem)] flex-col overflow-hidden">
       <PageHeader
         title="Query Studio"
         subtitle={`Ask questions and get concrete recommendations scoped to ${activeDataset.name}.`}
         actions={
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-2 border text-xs">
+            <div className="relative flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-2 border border-subtle hover:border-primary/30 transition-colors text-xs group cursor-pointer">
               <svg className="w-4 h-4 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79 8-4" />
               </svg>
-              <span className="text">{activeDataset.name}</span>
+              <select
+                className="bg-transparent border-none outline-none appearance-none pr-5 cursor-pointer text font-medium w-full"
+                value={selectedDatasetId}
+                onChange={(e) => setSelectedDatasetId(e.target.value)}
+              >
+                {datasets.map((d) => (
+                  <option key={d.id} value={d.id} className="bg-surface text">{d.name}</option>
+                ))}
+              </select>
+              <svg className="w-3 h-3 text-secondary absolute right-3 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+              </svg>
             </div>
-            <button className="btn btn-secondary">
-              <span className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                </svg>
-                Save Context
-              </span>
-            </button>
-            <button className="btn btn-primary">
-              <span className="flex items-center gap-2">
-                Share
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
-              </span>
-            </button>
           </div>
         }
       />
@@ -429,31 +425,42 @@ export function QueryStudioPage() {
           </div>
         </div>
 
+
         <div className="hidden w-96 flex-col gap-5 overflow-y-auto xl:flex">
-          <div className="card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text">Execution Meta</h3>
-              <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-surface-2 to-surface-3 border border-subtle">
-                <p className="text-[11px] font-medium text-secondary uppercase tracking-wider">Rows Scanned</p>
-                <p className="mt-1.5 text-xl font-bold text tabular-nums">{activeDataset.rows.toLocaleString()}</p>
+
+          <div className="card bg-gradient-to-br from-primary/5 to-transparent p-5">
+            <h3 className="text-sm font-semibold text mb-3">Active Dataset</h3>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-secondary">Name</span>
+                <span className="font-medium text truncate max-w-[150px]">{activeDataset.name}</span>
               </div>
-              <div className="p-3 rounded-xl bg-gradient-to-br from-surface-2 to-surface-3 border border-subtle">
-                <p className="text-[11px] font-medium text-secondary uppercase tracking-wider">Query Time</p>
-                <p className="mt-1.5 text-xl font-bold text tabular-nums">1.2s</p>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-secondary">Owner</span>
+                <span className="font-medium text">{activeDataset.owner}</span>
               </div>
-              <div className="p-3 rounded-xl bg-gradient-to-br from-surface-2 to-surface-3 border border-subtle">
-                <p className="text-[11px] font-medium text-secondary uppercase tracking-wider">Confidence</p>
-                <p className="mt-1.5 text-xl font-bold text-success tabular-nums">94%</p>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-secondary">Quality Score</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-16 h-1.5 rounded-full bg-surface-2">
+                    <div 
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400" 
+                      style={{ width: `${activeDataset.qualityScore}%` }}
+                    ></div>
+                  </div>
+                  <span className="font-medium text">{activeDataset.qualityScore}%</span>
+                </div>
               </div>
-              <div className="p-3 rounded-xl bg-gradient-to-br from-surface-2 to-surface-3 border border-subtle">
-                <p className="text-[11px] font-medium text-secondary uppercase tracking-wider">Cost</p>
-                <p className="mt-1.5 text-xl font-bold text tabular-nums">$0.02</p>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-secondary">Freshness</span>
+                <span className="inline-flex items-center gap-1 font-medium text-success">
+                  <span className="w-1.5 h-1.5 rounded-full bg-success"></span>
+                  {activeDataset.freshness}
+                </span>
               </div>
             </div>
           </div>
+          
 
           <div className="card flex-1 p-5">
             <div className="flex items-center justify-between mb-4">
@@ -493,38 +500,6 @@ export function QueryStudioPage() {
             </div>
           </div>
 
-          <div className="card bg-gradient-to-br from-primary/5 to-transparent p-5">
-            <h3 className="text-sm font-semibold text mb-3">Active Dataset</h3>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-secondary">Name</span>
-                <span className="font-medium text truncate max-w-[150px]">{activeDataset.name}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-secondary">Owner</span>
-                <span className="font-medium text">{activeDataset.owner}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-secondary">Quality Score</span>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-16 h-1.5 rounded-full bg-surface-2">
-                    <div 
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400" 
-                      style={{ width: `${activeDataset.qualityScore}%` }}
-                    ></div>
-                  </div>
-                  <span className="font-medium text">{activeDataset.qualityScore}%</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-secondary">Freshness</span>
-                <span className="inline-flex items-center gap-1 font-medium text-success">
-                  <span className="w-1.5 h-1.5 rounded-full bg-success"></span>
-                  {activeDataset.freshness}
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

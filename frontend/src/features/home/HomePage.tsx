@@ -130,7 +130,7 @@ export function HomePage() {
             <Link to="/workspace-settings" className="btn btn-secondary text-xs">
               Settings
             </Link>
-            <Link to="/data-studio" className="btn btn-primary text-xs">
+            <Link to="/data-import" className="btn btn-primary text-xs">
               Connect Data
             </Link>
           </div>
@@ -178,7 +178,7 @@ export function HomePage() {
               <h2 className="text-sm font-semibold text-text">Active Dataset</h2>
               <p className="mt-0.5 text-xs text-text-tertiary">Primary data source for model training.</p>
             </div>
-            <Link to="/data-studio" className="text-xs font-medium text-primary hover:underline">
+            <Link to="/data-import" className="text-xs font-medium text-primary hover:underline">
               Manage
             </Link>
           </div>

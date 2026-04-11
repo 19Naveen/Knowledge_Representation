@@ -10,7 +10,10 @@ const navGroups = [
   },
   {
     title: "Data Foundation",
-    items: [{ to: "/data-studio", label: "Datasets & Pipelines" }]
+    items: [
+      { to: "/data-import", label: "Data Import" },
+      { to: "/data-transform", label: "Data Transformation" }
+    ]
   },
   {
     title: "Exploration",
@@ -21,7 +24,10 @@ const navGroups = [
   },
   {
     title: "Machine Learning",
-    items: [{ to: "/automl-lab", label: "AutoML Experiments" }]
+    items: [
+      { to: "/ml-training", label: "Model Training" },
+      { to: "/ml-prediction", label: "Model Prediction" }
+    ]
   },
   {
     title: "Production",

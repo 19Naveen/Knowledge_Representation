@@ -1,51 +1,39 @@
 import { useState, useCallback } from "react";
-import { Link } from "react-router-dom";
 import { PageHeader } from "../../components/shared/PageHeader";
-import { insights, charts } from "../../lib/mocks/data";
 
-interface ChartDataPoint {
-  label: string;
-  value: number;
-  value2?: number;
+interface Widget {
+  id: string;
+  type: "line" | "bar" | "pie" | "table" | "kpi";
+  title: string;
+  xAxis: string;
+  yAxis: string;
+  aggregation: "sum" | "avg" | "count" | "min" | "max";
+  data: { label: string; value: number }[];
 }
 
-const mockChartData: Record<string, ChartDataPoint[]> = {
-  line: [
-    { label: "Jan", value: 42000 },
-    { label: "Feb", value: 48000 },
-    { label: "Mar", value: 51000 },
-    { label: "Apr", value: 47000 },
-    { label: "May", value: 54000 },
-    { label: "Jun", value: 62000 },
-    { label: "Jul", value: 68000 },
-    { label: "Aug", value: 72000 },
-    { label: "Sep", value: 69000 },
-    { label: "Oct", value: 75000 },
-    { label: "Nov", value: 82000 },
-    { label: "Dec", value: 91000 }
-  ],
-  bar: [
-    { label: "18-25", value: 42 },
-    { label: "26-35", value: 28 },
-    { label: "36-45", value: 18 },
-    { label: "46-55", value: 12 },
-    { label: "55+", value: 8 }
-  ],
-  scatter: [
-    { label: "A", value: 1200, value2: 2 },
-    { label: "B", value: 3400, value2: 5 },
-    { label: "C", value: 2800, value2: 3 },
-    { label: "D", value: 5600, value2: 8 },
-    { label: "E", value: 1900, value2: 1 },
-    { label: "F", value: 4200, value2: 6 },
-    { label: "G", value: 3800, value2: 4 },
-    { label: "H", value: 6100, value2: 9 },
-    { label: "I", value: 2200, value2: 2 },
-    { label: "J", value: 4700, value2: 7 }
-  ]
-};
+const mockColumns = ["date", "revenue", "users", "orders", "category", "region"];
 
-function MiniLineChart({ data, color = "#0ea5e9" }: { data: ChartDataPoint[]; color?: string }) {
+function generateMockData(_type: Widget["type"], _xAxis: string, _yAxis: string, aggregation: Widget["aggregation"]): { label: string; value: number }[] {
+  const labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
+  const values = [42000, 48000, 51000, 47000, 54000, 62000];
+  
+  if (aggregation === "count") {
+    return labels.map((label) => ({ label, value: Math.floor(Math.random() * 10) + 1 }));
+  }
+  if (aggregation === "min") {
+    return labels.map((label) => ({ label, value: Math.min(...values) }));
+  }
+  if (aggregation === "max") {
+    return labels.map((label) => ({ label, value: Math.max(...values) }));
+  }
+  
+  return labels.map((label, idx) => ({
+    label,
+    value: aggregation === "sum" || aggregation === "avg" ? values[idx] : values[idx]
+  }));
+}
+
+function MiniLineChart({ data, color = "#0ea5e9" }: { data: { label: string; value: number }[]; color?: string }) {
   const max = Math.max(...data.map(d => d.value));
   const min = Math.min(...data.map(d => d.value));
   const range = max - min || 1;
@@ -75,11 +63,12 @@ function MiniLineChart({ data, color = "#0ea5e9" }: { data: ChartDataPoint[]; co
   );
 }
 
-function MiniBarChart({ data }: { data: ChartDataPoint[] }) {
+function MiniBarChart({ data }: { data: { label: string; value: number }[] }) {
   const max = Math.max(...data.map(d => d.value));
   const width = 100;
   const height = 40;
   const barWidth = (width / data.length) - 4;
+  const colors = ["#0ea5e9", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4"];
   
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" preserveAspectRatio="none">
@@ -87,7 +76,6 @@ function MiniBarChart({ data }: { data: ChartDataPoint[] }) {
         const barHeight = (d.value / max) * (height - 8);
         const x = (i * (width / data.length)) + 2;
         const y = height - 4 - barHeight;
-        const color = ["#0ea5e9", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444"][i % 5];
         return (
           <rect
             key={i}
@@ -96,7 +84,7 @@ function MiniBarChart({ data }: { data: ChartDataPoint[] }) {
             width={barWidth}
             height={barHeight}
             rx={2}
-            fill={color}
+            fill={colors[i % colors.length]}
             className="opacity-90 hover:opacity-100 transition-opacity"
           />
         );
@@ -105,521 +93,378 @@ function MiniBarChart({ data }: { data: ChartDataPoint[] }) {
   );
 }
 
-function MiniScatterChart({ data }: { data: ChartDataPoint[] }) {
-  const maxX = Math.max(...data.map(d => d.value));
-  const maxY = Math.max(...data.map(d => d.value2 || 0));
-  const width = 100;
-  const height = 40;
-  const padding = 6;
+function MiniPieChart({ data }: { data: { label: string; value: number }[] }) {
+  const total = data.reduce((sum, d) => sum + d.value, 0);
+  const colors = ["#0ea5e9", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4"];
+  let cumulative = 0;
+  
+  const slices = data.map((d, i) => {
+    const startAngle = (cumulative / total) * 360;
+    const endAngle = ((cumulative + d.value) / total) * 360;
+    cumulative += d.value;
+    
+    const startRad = (startAngle - 90) * (Math.PI / 180);
+    const endRad = (endAngle - 90) * (Math.PI / 180);
+    
+    const x1 = 50 + 35 * Math.cos(startRad);
+    const y1 = 50 + 35 * Math.sin(startRad);
+    const x2 = 50 + 35 * Math.cos(endRad);
+    const y2 = 50 + 35 * Math.sin(endRad);
+    
+    const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+    
+    return (
+      <path
+        key={i}
+        d={`M 50 50 L ${x1} ${y1} A 35 35 0 ${largeArc} 1 ${x2} ${y2} Z`}
+        fill={colors[i % colors.length]}
+        className="hover:opacity-80 transition-opacity"
+      />
+    );
+  });
   
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
-      <defs>
-        <radialGradient id="scatterGrad" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.8" />
-          <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.2" />
-        </radialGradient>
-      </defs>
-      {data.map((d, i) => {
-        const x = padding + ((d.value / maxX) * (width - padding * 2));
-        const y = height - padding - ((d.value2 || 0) / maxY) * (height - padding * 2);
-        return (
-          <circle
-            key={i}
-            cx={x}
-            cy={y}
-            r={3}
-            fill="url(#scatterGrad)"
-            stroke="#0ea5e9"
-            strokeWidth={0.5}
-            className="hover:r-4 transition-all"
-          />
-        );
-      })}
+    <svg viewBox="0 0 100 100" className="w-full h-full">
+      {slices}
     </svg>
   );
 }
 
-function TrendIndicator({ value }: { value: number }) {
-  const isPositive = value > 0;
-  const isNeutral = value === 0;
+function KPICard({ data, title }: { data: { label: string; value: number }[]; title: string }) {
+  const latest = data[data.length - 1]?.value || 0;
+  const change = data.length > 1 ? ((latest - data[0].value) / data[0].value * 100).toFixed(1) : "0";
+  
   return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${isPositive ? 'text-success' : isNeutral ? 'text-tertiary' : 'text-danger'}`}>
-      <svg className={`w-3 h-3 ${isPositive ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-      </svg>
-      {Math.abs(value)}%
-    </span>
+    <div className="flex flex-col items-center justify-center h-full">
+      <span className="text-3xl font-bold text">{latest.toLocaleString()}</span>
+      <span className="text-xs text-tertiary mt-1">{title}</span>
+      <span className={`text-xs font-medium mt-2 ${Number(change) >= 0 ? 'text-success' : 'text-danger'}`}>
+        {Number(change) >= 0 ? '+' : ''}{change}% from period
+      </span>
+    </div>
   );
 }
 
-function InsightCard({ insight }: { insight: typeof insights[0] }) {
-  const [expanded, setExpanded] = useState(false);
-  
-  const severityConfig = {
-    warning: {
-      icon: (
-        <svg className="w-4 h-4 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-      ),
-      bg: "bg-warning/10",
-      border: "border-warning/20",
-      label: "Warning"
-    },
-    info: {
-      icon: (
-        <svg className="w-4 h-4 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      bg: "bg-info/10",
-      border: "border-info/20",
-      label: "Insight"
-    },
-    success: {
-      icon: (
-        <svg className="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      bg: "bg-success/10",
-      border: "border-success/20",
-      label: "Success"
+function DataTable({ data }: { data: { label: string; value: number }[] }) {
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="border-b border-subtle">
+          <th className="text-left py-2 text-tertiary font-medium">Label</th>
+          <th className="text-right py-2 text-tertiary font-medium">Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((row, i) => (
+          <tr key={i} className="border-b border-subtle/50 hover:bg-surface-2 transition-colors">
+            <td className="py-2 text">{row.label}</td>
+            <td className="py-2 text-right text">{row.value.toLocaleString()}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function WidgetRenderer({ widget }: { widget: Widget }) {
+  const renderContent = () => {
+    switch (widget.type) {
+      case "line":
+        return <MiniLineChart data={widget.data} color="#0ea5e9" />;
+      case "bar":
+        return <MiniBarChart data={widget.data} />;
+      case "pie":
+        return <MiniPieChart data={widget.data} />;
+      case "table":
+        return <DataTable data={widget.data} />;
+      case "kpi":
+        return <KPICard data={widget.data} title={widget.yAxis} />;
+      default:
+        return null;
     }
   };
   
-  const config = severityConfig[insight.severity];
+  const heightClass = widget.type === "table" ? "h-40" : "h-32";
   
   return (
-    <div 
-      className={`group p-4 rounded-lg border ${config.bg} ${config.border} cursor-pointer transition-all hover:shadow-md`}
-      onClick={() => setExpanded(!expanded)}
-    >
-      <div className="flex items-start gap-3">
-        <div className={`mt-0.5 p-1.5 rounded-md ${config.bg}`}>
-          {config.icon}
+    <div className="card p-0 overflow-hidden">
+      <div className="px-4 py-3 border-b border-subtle flex items-center justify-between">
+        <h3 className="text-sm font-semibold text">{widget.title}</h3>
+        <span className="text-[10px] text-tertiary uppercase">{widget.type}</span>
+      </div>
+      <div className={`p-4 ${heightClass}`}>
+        {renderContent()}
+      </div>
+    </div>
+  );
+}
+
+function WidgetConfigPanel({
+  onAddWidget,
+  onClose
+}: {
+  onAddWidget: (widget: Widget) => void;
+  onClose: () => void;
+}) {
+  const [widgetType, setWidgetType] = useState<Widget["type"]>("line");
+  const [title, setTitle] = useState("");
+  const [xAxis, setXAxis] = useState("date");
+  const [yAxis, setYAxis] = useState("revenue");
+  const [aggregation, setAggregation] = useState<Widget["aggregation"]>("sum");
+  
+  const handleAdd = () => {
+    if (!title) return;
+    const widget: Widget = {
+      id: `widget-${Date.now()}`,
+      type: widgetType,
+      title,
+      xAxis,
+      yAxis,
+      aggregation,
+      data: generateMockData(widgetType, xAxis, yAxis, aggregation)
+    };
+    onAddWidget(widget);
+    onClose();
+  };
+  
+  const widgetTypes = [
+    { id: "line", label: "Line Chart", icon: "📈" },
+    { id: "bar", label: "Bar Chart", icon: "📊" },
+    { id: "pie", label: "Pie Chart", icon: "🥧" },
+    { id: "table", label: "Table", icon: "📋" },
+    { id: "kpi", label: "KPI Card", icon: "🎯" }
+  ] as const;
+  
+  return (
+    <div className="card p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text">Add Widget</h3>
+        <button onClick={onClose} className="text-tertiary hover:text">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <div>
+        <label className="text-xs font-medium text-tertiary block mb-1.5">Widget Type</label>
+        <div className="grid grid-cols-5 gap-2">
+          {widgetTypes.map((wt) => (
+            <button
+              key={wt.id}
+              onClick={() => setWidgetType(wt.id)}
+              className={`p-2 rounded-lg border text-center transition-all ${widgetType === wt.id ? 'border-accent bg-accent/10' : 'border-subtle hover:border-tertiary'}`}
+            >
+              <span className="block text-lg mb-1">{wt.icon}</span>
+              <span className="text-[10px] text-tertiary">{wt.label}</span>
+            </button>
+          ))}
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold text truncate">{insight.title}</p>
-            <span className={`shrink-0 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider rounded-full ${config.bg} ${config.border} border`}>
-              {config.label}
-            </span>
-          </div>
-          <p className="mt-1.5 text-xs text-tertiary leading-relaxed">{insight.detail}</p>
-          
-          {expanded && (
-            <div className="mt-3 pt-3 border-t border-subtle animate-in fade-in slide-in-from-top-1 duration-200">
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2 rounded surface">
-                  <span className="text-tertiary block mb-0.5">Confidence</span>
-                  <span className="font-semibold text">94.2%</span>
-                </div>
-                <div className="p-2 rounded surface">
-                  <span className="text-tertiary block mb-0.5">Impact</span>
-                  <span className="font-semibold text">High</span>
-                </div>
-              </div>
-              <button className="btn btn-ghost mt-2 w-full py-1.5 text-xs font-medium text-accent">
-                View Details →
+      </div>
+      
+      <div>
+        <label className="text-xs font-medium text-tertiary block mb-1.5">Title</label>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Enter widget title"
+          className="input w-full"
+        />
+      </div>
+      
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs font-medium text-tertiary block mb-1.5">X-Axis</label>
+          <select value={xAxis} onChange={(e) => setXAxis(e.target.value)} className="input w-full">
+            {mockColumns.map((col) => (
+              <option key={col} value={col}>{col}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-tertiary block mb-1.5">Y-Axis</label>
+          <select value={yAxis} onChange={(e) => setYAxis(e.target.value)} className="input w-full">
+            {mockColumns.map((col) => (
+              <option key={col} value={col}>{col}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      
+      <div>
+        <label className="text-xs font-medium text-tertiary block mb-1.5">Aggregation</label>
+        <select value={aggregation} onChange={(e) => setAggregation(e.target.value as Widget["aggregation"])} className="input w-full">
+          <option value="sum">Sum</option>
+          <option value="avg">Average</option>
+          <option value="count">Count</option>
+          <option value="min">Minimum</option>
+          <option value="max">Maximum</option>
+        </select>
+      </div>
+      
+      <button onClick={handleAdd} className="btn btn-primary w-full">
+        Add Widget
+      </button>
+    </div>
+  );
+}
+
+function DashboardBuilder({
+  widgets,
+  onAddWidget,
+  onRemoveWidget,
+  onSaveDashboard,
+  onShare
+}: {
+  widgets: Widget[];
+  onAddWidget: (widget: Widget) => void;
+  onRemoveWidget: (id: string) => void;
+  onSaveDashboard: (name: string) => void;
+  onShare: () => void;
+}) {
+  const [showConfig, setShowConfig] = useState(false);
+  const [dashboardName, setDashboardName] = useState("");
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  
+  const handleSave = () => {
+    if (dashboardName) {
+      onSaveDashboard(dashboardName);
+      setDashboardName("");
+      setShowSaveModal(false);
+    }
+  };
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowConfig(!showConfig)}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Widget
+          </button>
+          {widgets.length > 0 && (
+            <>
+              <button onClick={() => setShowSaveModal(true)} className="btn btn-secondary flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+                Save Dashboard
               </button>
-            </div>
+              <button onClick={onShare} className="btn btn-ghost flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+                Share
+              </button>
+            </>
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function ChartCard({ chart, index }: { chart: typeof charts[0]; index: number }) {
-  const [showControls, setShowControls] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [timeRange, setTimeRange] = useState("12M");
-  
-  const chartData = mockChartData[chart.type] || mockChartData.line;
-  
-  const chartColors = ["#0ea5e9", "#8b5cf6", "#10b981", "#f59e0b"];
-  
-  return (
-    <div 
-      className={`relative group rounded-xl border surface shadow-sm transition-all hover:shadow-lg ${isFullscreen ? 'fixed inset-4 z-50 shadow-2xl' : ''}`}
-      onMouseEnter={() => setShowControls(true)}
-      onMouseLeave={() => setShowControls(false)}
-    >
-      <div className="absolute top-3 right-3 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button 
-          onClick={() => setIsFullscreen(!isFullscreen)}
-          className="p-1.5 rounded-md surface-2 hover:surface border shadow-sm transition-colors"
-          title="Fullscreen"
-        >
-          <svg className="w-4 h-4 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-          </svg>
-        </button>
-        <button className="p-1.5 rounded-md surface-2 hover:surface border shadow-sm transition-colors" title="Export">
-          <svg className="w-4 h-4 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-        </button>
-        <button className="p-1.5 rounded-md surface-2 hover:surface border shadow-sm transition-colors" title="Share">
-          <svg className="w-4 h-4 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-          </svg>
-        </button>
-      </div>
       
-      <div className="p-4 border-b border-subtle">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h3 className="text-sm font-semibold text">{chart.title}</h3>
-            <span className="rounded-md border surface-2 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-tertiary">
-              {chart.type}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {chart.type === "line" && (
-              <div className="flex surface-2 rounded-md p-0.5">
-                {["1M", "3M", "6M", "12M"].map((range) => (
-                  <button
-                    key={range}
-                    onClick={() => setTimeRange(range)}
-                    className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${timeRange === range ? 'surface shadow-sm text' : 'text-tertiary hover:text'}`}
-                  >
-                    {range}
-                  </button>
-                ))}
-              </div>
-            )}
+      {showConfig && (
+        <WidgetConfigPanel
+          onAddWidget={(widget) => {
+            onAddWidget(widget);
+            setShowConfig(false);
+          }}
+          onClose={() => setShowConfig(false)}
+        />
+      )}
+      
+      {showSaveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="card p-6 w-96 space-y-4">
+            <h3 className="text-sm font-semibold text">Save Dashboard</h3>
+            <input
+              type="text"
+              value={dashboardName}
+              onChange={(e) => setDashboardName(e.target.value)}
+              placeholder="Enter dashboard name"
+              className="input w-full"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setShowSaveModal(false)} className="btn btn-secondary flex-1">
+                Cancel
+              </button>
+              <button onClick={handleSave} className="btn btn-primary flex-1">
+                Save
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
       
-      <div className={`p-4 ${isFullscreen ? 'h-[calc(100vh-120px)]' : 'h-48'}`}>
-        {chart.type === "line" && <MiniLineChart data={chartData} color={chartColors[index % chartColors.length]} />}
-        {chart.type === "bar" && <MiniBarChart data={chartData} />}
-        {chart.type === "scatter" && <MiniScatterChart data={chartData} />}
-      </div>
-      
-      <div className="px-4 pb-4 flex items-center justify-between">
-        <p className="text-xs text-tertiary leading-relaxed">{chart.note}</p>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-tertiary">vs prev period</span>
-          <TrendIndicator value={[12, -8, 23][index % 3]} />
+      {widgets.length === 0 ? (
+        <div className="card p-12 text-center">
+          <div className="text-4xl mb-4">📊</div>
+          <h3 className="text-sm font-semibold text mb-2">No widgets yet</h3>
+          <p className="text-xs text-tertiary mb-4">Click "Add Widget" to create your first visualization</p>
+          <button onClick={() => setShowConfig(true)} className="btn btn-primary">
+            Add Your First Widget
+          </button>
         </div>
-      </div>
-      
-      {showControls && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1.5 surface-2/90 backdrop-blur-sm rounded-full border shadow-lg animate-in fade-in zoom-in-95 duration-200">
-          <button className="p-1 hover:surface rounded transition-colors" title="Zoom In">
-            <svg className="w-3.5 h-3.5 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-            </svg>
-          </button>
-          <button className="p-1 hover:surface rounded transition-colors" title="Zoom Out">
-            <svg className="w-3.5 h-3.5 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
-            </svg>
-          </button>
-          <div className="w-px h-4 border" />
-          <button className="p-1 hover:surface rounded transition-colors" title="Reset View">
-            <svg className="w-3.5 h-3.5 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </button>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          {widgets.map((widget) => (
+            <div key={widget.id} className="relative group">
+              <WidgetRenderer widget={widget} />
+              <button
+                onClick={() => onRemoveWidget(widget.id)}
+                className="absolute top-2 right-2 p-1.5 rounded-md bg-danger/10 hover:bg-danger/20 text-danger opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>
-  );
-}
-
-function DashboardStats() {
-  const stats = [
-    { label: "Total Revenue", value: "$847K", change: "+12.4%", trend: "up" },
-    { label: "Active Users", value: "12,847", change: "+8.2%", trend: "up" },
-    { label: "Churn Rate", value: "3.2%", change: "-0.8%", trend: "down" },
-    { label: "Avg. Session", value: "4m 32s", change: "+5.1%", trend: "up" }
-  ];
-  
-  return (
-    <div className="grid grid-cols-4 gap-4">
-      {stats.map((stat, i) => (
-        <div key={i} className="card p-4">
-          <p className="text-xs font-medium text-tertiary uppercase tracking-wider">{stat.label}</p>
-          <div className="mt-2 flex items-end justify-between">
-            <span className="text-2xl font-bold text">{stat.value}</span>
-            <span className={`text-xs font-medium ${stat.trend === 'up' ? 'text-success' : stat.change.startsWith('-') ? 'text-success' : 'text-danger'}`}>
-              {stat.change}
-            </span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function QuickActions() {
-  const actions = [
-    { icon: "📊", label: "New Chart", color: "btn-ghost" },
-    { icon: "📈", label: "Run Analysis", color: "btn-ghost" },
-    { icon: "🔍", label: "Deep Dive", color: "btn-ghost" },
-    { icon: "📤", label: "Export Report", color: "btn-ghost" }
-  ];
-  
-  return (
-    <div className="flex items-center gap-2">
-      {actions.map((action, i) => (
-        <button
-          key={i}
-          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all hover:shadow-md ${action.color}`}
-        >
-          <span>{action.icon}</span>
-          <span className="text">{action.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function TimeRangeSelector() {
-  const ranges = ["Today", "7D", "30D", "90D", "YTD", "All"];
-  const [selected, setSelected] = useState("30D");
-  
-  return (
-    <div className="flex items-center gap-1 p-1 surface-2 rounded-lg border">
-      {ranges.map((range) => (
-        <button
-          key={range}
-          onClick={() => setSelected(range)}
-          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${selected === range ? 'surface shadow-sm text' : 'text-tertiary hover:text'}`}
-        >
-          {range}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function RefreshButton() {
-  const [refreshing, setRefreshing] = useState(false);
-  
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1500);
-  }, []);
-  
-  return (
-    <button
-      onClick={handleRefresh}
-      className="btn border flex items-center gap-2 px-3 py-2"
-    >
-      <svg className={`w-4 h-4 text-tertiary ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-      </svg>
-      <span className="text-xs font-medium text">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
-    </button>
   );
 }
 
 export function EDADashboardsPage() {
-  const [activeTab, setActiveTab] = useState<"overview" | "charts" | "insights">("overview");
+  const [widgets, setWidgets] = useState<Widget[]>([]);
   
-  const tabs = [
-    { id: "overview", label: "Overview", icon: "📊" },
-    { id: "charts", label: "Charts", icon: "📈" },
-    { id: "insights", label: "Insights", icon: "💡" }
-  ] as const;
+  const handleAddWidget = useCallback((widget: Widget) => {
+    setWidgets(prev => [...prev, widget]);
+  }, []);
+  
+  const handleRemoveWidget = useCallback((id: string) => {
+    setWidgets(prev => prev.filter(w => w.id !== id));
+  }, []);
+  
+  const handleSaveDashboard = useCallback((name: string) => {
+    console.log("Saving dashboard:", name, widgets);
+    alert(`Dashboard "${name}" saved successfully!`);
+  }, [widgets]);
+  
+  const handleShare = useCallback(() => {
+    alert("Share link copied to clipboard!");
+  }, []);
   
   return (
     <section className="space-y-6">
       <PageHeader
-        title="Analytics Dashboard"
-        subtitle="Real-time metrics, automated insights, and shareable reports"
-        actions={
-          <div className="flex items-center gap-3">
-            <TimeRangeSelector />
-            <RefreshButton />
-            <button className="btn btn-secondary flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              Invite
-            </button>
-            <button className="btn btn-primary flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              New Chart
-            </button>
-          </div>
-        }
+        title="EDA Dashboards"
+        subtitle="Build custom dashboards with widgets"
       />
       
-      <div className="flex items-center gap-4 border-b border-subtle">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`relative px-4 py-3 text-sm font-medium transition-colors flex items-center gap-2 ${activeTab === tab.id ? 'text-accent' : 'text-tertiary hover:text'}`}
-          >
-            <span>{tab.icon}</span>
-            {tab.label}
-            {activeTab === tab.id && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />
-            )}
-          </button>
-        ))}
-      </div>
-      
-      {activeTab === "overview" && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <DashboardStats />
-          
-          <div className="grid gap-6 lg:grid-cols-3">
-            <article className="card flex flex-col lg:col-span-1">
-              <div className="border-b px-5 py-4 flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold text">Automated Insights</h2>
-                  <p className="mt-0.5 text-[11px] uppercase tracking-wider text-tertiary">AI-powered analysis</p>
-                </div>
-                <span className="px-2 py-1 text-[10px] font-medium bg-accent/10 text-accent rounded-full">
-                  {insights.length} new
-                </span>
-              </div>
-              <div className="flex-1 divide-y p-3 space-y-2">
-                {insights.map((insight) => (
-                  <InsightCard key={insight.id} insight={insight} />
-                ))}
-              </div>
-              <div className="p-3 border-t">
-                <button className="w-full py-2 text-xs font-medium text-tertiary hover:text-accent transition-colors">
-                  View all insights →
-                </button>
-              </div>
-            </article>
-            
-            <div className="flex flex-col gap-4 lg:col-span-2">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text">Pinned Charts</h2>
-                <div className="flex items-center gap-2">
-                  <button className="p-1.5 rounded border surface hover:surface-2 transition-colors">
-                    <svg className="w-4 h-4 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                    </svg>
-                  </button>
-                  <button className="p-1.5 rounded border surface hover:surface-2 transition-colors">
-                    <svg className="w-4 h-4 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              
-              <section className="grid gap-4 sm:grid-cols-2">
-                {charts.map((chart, i) => (
-                  <ChartCard key={chart.id} chart={chart} index={i} />
-                ))}
-              </section>
-              
-              <article className="card border-accent/20 bg-gradient-to-r from-accent/5 to-transparent p-5 flex items-center justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="p-2 rounded-lg bg-accent/10">
-                    <svg className="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text">Need deeper analysis?</h3>
-                    <p className="mt-1 text-xs text-tertiary max-w-md">Use the AI Query Studio to generate custom charts, run SQL queries, and get natural language insights from your data.</p>
-                  </div>
-                </div>
-                <Link to="/query-studio" className="btn btn-primary shrink-0">
-                  Open Query Studio →
-                </Link>
-              </article>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {activeTab === "charts" && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-center justify-between">
-            <QuickActions />
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search charts..."
-                  className="input w-64 pl-9 pr-4 py-2"
-                />
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <select className="input px-3 py-2 text-xs">
-                <option>All Types</option>
-                <option>Line</option>
-                <option>Bar</option>
-                <option>Scatter</option>
-              </select>
-            </div>
-          </div>
-          
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {charts.map((chart, i) => (
-              <ChartCard key={chart.id} chart={chart} index={i} />
-            ))}
-            {[...charts, ...charts].slice(0, 3).map((chart, i) => (
-              <ChartCard key={`extra-${i}`} chart={{ ...chart, id: `extra-${i}` }} index={i} />
-            ))}
-          </section>
-        </div>
-      )}
-      
-      {activeTab === "insights" && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-tertiary">Filter by:</span>
-                <select className="input px-3 py-1.5 text-xs">
-                  <option>All Severity</option>
-                  <option>Warning</option>
-                  <option>Info</option>
-                  <option>Success</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-tertiary">Sort by:</span>
-                <select className="input px-3 py-1.5 text-xs">
-                  <option>Newest First</option>
-                  <option>Highest Impact</option>
-                  <option>Oldest First</option>
-                </select>
-              </div>
-            </div>
-            <button className="btn btn-ghost flex items-center gap-2 px-3 py-2 text-xs font-medium text-accent border border-accent/30">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              More Filters
-            </button>
-          </div>
-          
-          <div className="grid gap-4 sm:grid-cols-2">
-            {[...insights, ...insights].map((insight, i) => (
-              <InsightCard key={`insight-${i}`} insight={insight} />
-            ))}
-          </div>
-          
-          <div className="flex items-center justify-center gap-2 py-8">
-            <button className="btn btn-secondary px-4 py-2 text-xs">Previous</button>
-            <span className="px-4 py-2 text-xs text-tertiary">Page 1 of 3</span>
-            <button className="btn btn-secondary px-4 py-2 text-xs">Next</button>
-          </div>
-        </div>
-      )}
+      <DashboardBuilder
+        widgets={widgets}
+        onAddWidget={handleAddWidget}
+        onRemoveWidget={handleRemoveWidget}
+        onSaveDashboard={handleSaveDashboard}
+        onShare={handleShare}
+      />
     </section>
   );
 }

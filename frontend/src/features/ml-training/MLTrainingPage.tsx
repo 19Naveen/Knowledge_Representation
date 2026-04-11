@@ -1,26 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { PageHeader } from "../../components/shared/PageHeader";
-import { StatusPill } from "../../components/shared/StatusPill";
 import { cn } from "../../lib/cn";
 
 type TrainingMode = "auto" | "finetune";
 type ProblemType = "Classification" | "Regression";
 type Algorithm = "XGBoost" | "Random Forest" | "Logistic Regression" | "Neural Network";
 type TrainingStatus = "idle" | "training" | "completed" | "error";
-
-interface ModelResult {
-  id: string;
-  model: string;
-  score: number;
-  status: "completed" | "running" | "queued";
-  accuracy: number;
-  precision: number;
-  recall: number;
-  auc: number;
-  trainingTime: string;
-  features: number;
-  createdAt: string;
-}
 
 interface TrainingConfig {
   problemType: ProblemType;
@@ -31,22 +16,6 @@ interface TrainingConfig {
   crossValidation: number;
   earlyStopping: boolean;
 }
-
-const mockLeaderboard: ModelResult[] = [
-  { id: "m-1", model: "XGBoost", score: 0.942, status: "completed", accuracy: 0.948, precision: 0.912, recall: 0.876, auc: 0.981, trainingTime: "4m 32s", features: 24, createdAt: "2024-01-15T10:23:00Z" },
-  { id: "m-2", model: "Random Forest", score: 0.918, status: "completed", accuracy: 0.923, precision: 0.889, recall: 0.854, auc: 0.962, trainingTime: "2m 18s", features: 24, createdAt: "2024-01-15T10:18:00Z" },
-  { id: "m-3", model: "Logistic Regression", score: 0.854, status: "completed", accuracy: 0.861, precision: 0.832, recall: 0.798, auc: 0.912, trainingTime: "0m 45s", features: 24, createdAt: "2024-01-15T10:15:00Z" },
-  { id: "m-4", model: "XGBoost v2", score: 0.891, status: "running", accuracy: 0.894, precision: 0.867, recall: 0.831, auc: 0.945, trainingTime: "1m 12s", features: 24, createdAt: "2024-01-15T10:28:00Z" },
-];
-
-const sampleFeatures = [
-  { name: "age", label: "Age", type: "number", placeholder: "e.g., 35" },
-  { name: "income", label: "Annual Income", type: "number", placeholder: "e.g., 50000" },
-  { name: "education", label: "Education Level", type: "select", options: ["High School", "Bachelor", "Master", "PhD"] },
-  { name: "employment", label: "Employment Status", type: "select", options: ["Employed", "Self-employed", "Unemployed"] },
-  { name: "balance", label: "Account Balance", type: "number", placeholder: "e.g., 10000" },
-  { name: "transactions", label: "Monthly Transactions", type: "number", placeholder: "e.g., 15" },
-];
 
 function ProgressBar({ progress, status }: { progress: number; status: TrainingStatus }) {
   const colors = {
@@ -327,266 +296,7 @@ function TrainingPanel({
   );
 }
 
-function PredictionPanel({ leaderboard }: { leaderboard: ModelResult[] }) {
-  const [activeTab, setActiveTab] = useState<"single" | "batch">("single");
-  const [singlePrediction, setSinglePrediction] = useState<Record<string, string>>({});
-  const [predictionResult, setPredictionResult] = useState<{ value: string; confidence: number } | null>(null);
-  const [isPredicting, setIsPredicting] = useState(false);
-
-  const bestModel = leaderboard.find(m => m.status === "completed");
-
-  const handlePredict = () => {
-    setIsPredicting(true);
-    setTimeout(() => {
-      setPredictionResult({
-        value: Math.random() > 0.5 ? "Positive" : "Negative",
-        confidence: 0.75 + Math.random() * 0.2,
-      });
-      setIsPredicting(false);
-    }, 1000);
-  };
-
-  return (
-    <div className="card flex flex-col overflow-hidden">
-      <div className="border-b border-border-subtle px-5 py-4">
-        <h2 className="text-base font-semibold text">Prediction</h2>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-5">
-        <div className="mb-4 flex rounded-lg border border-border p-1">
-          <button
-            onClick={() => setActiveTab("single")}
-            className={cn(
-              "flex-1 rounded-md px-4 py-2 text-sm font-medium transition-all",
-              activeTab === "single" ? "bg-accent text-white shadow-sm" : "text-text-secondary hover:bg-surface-2"
-            )}
-          >
-            Single
-          </button>
-          <button
-            onClick={() => setActiveTab("batch")}
-            className={cn(
-              "flex-1 rounded-md px-4 py-2 text-sm font-medium transition-all",
-              activeTab === "batch" ? "bg-accent text-white shadow-sm" : "text-text-secondary hover:bg-surface-2"
-            )}
-          >
-            Batch
-          </button>
-        </div>
-
-        {activeTab === "single" && (
-          <div className="space-y-4">
-            <p className="text-xs text-text-tertiary">
-              Using model: <span className="font-medium text">{bestModel?.model ?? "No model"}</span>
-            </p>
-
-            <div className="space-y-3">
-              {sampleFeatures.map((feature) => (
-                <div key={feature.name} className="space-y-1">
-                  <label className="text-xs font-medium text-text-secondary">{feature.label}</label>
-                  {feature.type === "select" ? (
-                    <select
-                      value={singlePrediction[feature.name] || ""}
-                      onChange={(e) => setSinglePrediction({ ...singlePrediction, [feature.name]: e.target.value })}
-                      className="input w-full text-sm"
-                    >
-                      <option value="">Select...</option>
-                      {feature.options?.map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="number"
-                      placeholder={feature.placeholder}
-                      value={singlePrediction[feature.name] || ""}
-                      onChange={(e) => setSinglePrediction({ ...singlePrediction, [feature.name]: e.target.value })}
-                      className="input w-full text-sm"
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={handlePredict}
-              disabled={isPredicting || !bestModel}
-              className="btn btn-primary w-full"
-            >
-              {isPredicting ? "Predicting..." : "Predict"}
-            </button>
-
-            {predictionResult && (
-              <div className="rounded-lg border border-success/30 bg-success-muted/30 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium uppercase text-text-tertiary">Result</p>
-                    <p className="text-lg font-bold text-success">{predictionResult.value}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-medium uppercase text-text-tertiary">Confidence</p>
-                    <p className="text-lg font-bold text">{(predictionResult.confidence * 100).toFixed(1)}%</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "batch" && (
-          <div className="space-y-4">
-            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-8 text-center">
-              <svg className="h-10 w-10 text-text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              <p className="mt-2 text-sm text-text-secondary">Upload CSV for batch predictions</p>
-              <button className="btn btn-secondary mt-3 text-sm">Choose File</button>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-border-subtle bg-surface-2/30 p-3">
-              <div className="flex items-center gap-3">
-                <svg className="h-5 w-5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span className="text-sm text-text-secondary">predictions.csv</span>
-              </div>
-              <button className="btn btn-ghost text-sm">Download</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function EndpointPanel({ modelId }: { modelId: string | null }) {
-  const [copied, setCopied] = useState(false);
-  const endpoint = `https://api.example.com/v1/predict/${modelId || "model-id"}`;
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(endpoint);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="card p-5 space-y-4">
-      <h3 className="text-sm font-semibold text">Endpoint</h3>
-      
-      <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface-2/30 p-3">
-        <code className="flex-1 truncate text-xs font-mono text-text-secondary">{endpoint}</code>
-        <button onClick={handleCopy} className="btn btn-ghost p-1.5">
-          {copied ? (
-            <svg className="h-4 w-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          ) : (
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-          )}
-        </button>
-      </div>
-
-      <button className="btn btn-secondary w-full text-sm">
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.001 0 01-15.357-2m15.357 2H15" />
-        </svg>
-        Retrain Model
-      </button>
-    </div>
-  );
-}
-
-function LeaderboardPanel({ models, selectedId, onSelect }: { models: ModelResult[]; selectedId: string | null; onSelect: (id: string) => void }) {
-  const completedModels = models.filter(m => m.status === "completed");
-  
-  return (
-    <div className="card flex flex-col overflow-hidden">
-      <div className="border-b border-border-subtle px-5 py-4 flex items-center justify-between">
-        <h2 className="text-base font-semibold text">Model Leaderboard</h2>
-        <span className="text-xs text-text-tertiary">{completedModels.length} completed</span>
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="sticky top-0 bg-surface/95 backdrop-blur-sm">
-            <tr className="border-b border-border bg-surface-2/50">
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">Rank</th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">Model</th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">Score</th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle">
-            {completedModels.map((model, idx) => (
-              <tr
-                key={model.id}
-                onClick={() => onSelect(model.id)}
-                className={cn(
-                  "cursor-pointer transition-colors hover:bg-surface-2/20",
-                  selectedId === model.id && "bg-accent/5"
-                )}
-              >
-                <td className="px-4 py-3">
-                  {idx === 0 ? (
-                    <span className="inline-flex size-6 items-center justify-center rounded-full bg-amber-400 text-[10px] font-bold text-amber-900">★</span>
-                  ) : (
-                    <span className="flex size-6 items-center justify-center rounded-full bg-surface-2 text-xs font-medium text-text-tertiary">{idx + 1}</span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <span className="font-medium text">{model.model}</span>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={cn(
-                    "font-semibold tabular-nums",
-                    model.score >= 0.9 ? "text-success" : model.score >= 0.85 ? "text-warning" : "text-danger"
-                  )}>
-                    {(model.score * 100).toFixed(1)}%
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <StatusPill label={model.status} tone="success" />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {models.filter(m => m.status !== "completed").length > 0 && (
-          <>
-            <div className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary bg-surface-2/30">
-              In Progress
-            </div>
-            <table className="w-full text-left text-sm">
-              <tbody className="divide-y divide-border-subtle">
-                {models.filter(m => m.status !== "completed").map((model) => (
-                  <tr key={model.id} className="opacity-60">
-                    <td className="px-4 py-3">
-                      <span className="flex size-6 items-center justify-center rounded-full bg-surface-2 text-xs font-medium text-text-tertiary">-</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="font-medium text">{model.model}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-text-tertiary">—</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusPill label={model.status} tone={model.status === "running" ? "warning" : "info"} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export function AutoMLLabPage() {
+export function MLTrainingPage() {
   const [mode, setMode] = useState<TrainingMode>("auto");
   const [config, setConfig] = useState<TrainingConfig>({
     problemType: "Classification",
@@ -603,10 +313,7 @@ export function AutoMLLabPage() {
   const [lossData, setLossData] = useState<number[]>([]);
   const [accuracyData, setAccuracyData] = useState<number[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
-  const [selectedModelId, setSelectedModelId] = useState<string | null>("m-1");
   const trainingInterval = useRef<number | null>(null);
-
-  const selectedModel = mockLeaderboard.find(m => m.id === selectedModelId);
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -692,8 +399,8 @@ export function AutoMLLabPage() {
   return (
     <section className="animate-in fade-in duration-300">
       <PageHeader
-        title="ML Training & Prediction"
-        subtitle="Train models and make predictions with real-time progress tracking."
+        title="ML Training"
+        subtitle="Train machine learning models with real-time progress tracking."
         actions={
           <div className="flex items-center gap-2">
             <button className="btn btn-secondary">
@@ -712,8 +419,8 @@ export function AutoMLLabPage() {
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="space-y-6 lg:col-span-4">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-1">
           <TrainingPanel
             mode={mode}
             config={config}
@@ -729,18 +436,48 @@ export function AutoMLLabPage() {
             onStartTraining={startTraining}
             onStopTraining={() => stopTraining(false)}
           />
-          
-          <PredictionPanel leaderboard={mockLeaderboard} />
-          
-          {selectedModel && <EndpointPanel modelId={selectedModelId} />}
         </div>
 
-        <div className="lg:col-span-8">
-          <LeaderboardPanel
-            models={mockLeaderboard}
-            selectedId={selectedModelId}
-            onSelect={setSelectedModelId}
-          />
+        <div className="lg:col-span-2 space-y-6">
+          <div className="card p-5">
+            <h3 className="text-sm font-semibold text mb-4">Training Overview</h3>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-border-subtle bg-surface-2/30 p-4">
+                <p className="text-xs font-medium uppercase text-text-tertiary">Status</p>
+                <p className="mt-1 text-lg font-semibold text">{status === "idle" ? "Ready" : status === "training" ? "Training" : status === "completed" ? "Completed" : "Error"}</p>
+              </div>
+              <div className="rounded-lg border border-border-subtle bg-surface-2/30 p-4">
+                <p className="text-xs font-medium uppercase text-text-tertiary">Current Epoch</p>
+                <p className="mt-1 text-lg font-semibold text">{epoch} / {mode === "finetune" ? config.epochs : 100}</p>
+              </div>
+              <div className="rounded-lg border border-border-subtle bg-surface-2/30 p-4">
+                <p className="text-xs font-medium uppercase text-text-tertiary">Progress</p>
+                <p className="mt-1 text-lg font-semibold text">{progress.toFixed(1)}%</p>
+              </div>
+            </div>
+          </div>
+
+          {status === "completed" && (
+            <div className="card p-5">
+              <h3 className="text-sm font-semibold text mb-4">Training Results</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-lg border border-success/30 bg-success-muted/30 p-4">
+                  <p className="text-xs font-medium uppercase text-text-tertiary">Validation Accuracy</p>
+                  <p className="mt-1 text-2xl font-bold text-success">94.8%</p>
+                </div>
+                <div className="rounded-lg border border-border-subtle bg-surface-2/30 p-4">
+                  <p className="text-xs font-medium uppercase text-text-tertiary">Training Time</p>
+                  <p className="mt-1 text-2xl font-bold text">4m 32s</p>
+                </div>
+              </div>
+              <button className="btn btn-primary mt-4 w-full">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download Model
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </section>
