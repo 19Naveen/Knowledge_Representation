@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { PageHeader } from "../../components/shared/PageHeader";
 import { Database, FileSpreadsheet, Activity, Clock, Upload, Plus, Table, CheckCircle2, ArrowRight, Server, Key, User } from "lucide-react";
-import { datasets, workspace } from "../../lib/mocks/data";
-
+import { cn } from "../../lib/cn";
 
 type Step = 'list' | 'db_creds' | 'preview' | 'success';
 
 export function DataImportPage() {
   const [activeTab, setActiveTab] = useState<'scheduled' | 'adhoc'>('scheduled');
   const [step, setStep] = useState<Step>('list');
-  
+
   // Config state for preview
   const [sourceName, setSourceName] = useState<string>('');
   const [targetTable, setTargetTable] = useState<string>('new_table');
@@ -44,79 +43,79 @@ export function DataImportPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-5rem)] flex-col overflow-hidden">
-      <PageHeader 
-        title="Data Import" 
-        subtitle="Manage regular database connections or perform ad-hoc file uploads."
+    <div className="flex h-full flex-col animate-in fade-in duration-500">
+      <PageHeader
+        title="Data Ingestion"
+        subtitle="Orchestrate automated database synchronization or execute rapid ad-hoc object uploads."
       />
 
-      <div className="flex-1 p-6 overflow-y-auto bg-[#fafafa]">
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-[#eaeaea] mb-6">
-          <button 
+      <div className="flex-1 p-8 overflow-y-auto bg-surface-2/20">
+        {/* Tabs - Reverted to Original Feature/Structure */}
+        <div className="flex gap-8 border-b border-border mb-8">
+          <button
             onClick={() => switchTab('scheduled')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'scheduled' 
-                ? 'border-black text-black' 
-                : 'border-transparent text-[#666] hover:text-black'
-            }`}
+            className={cn(
+              "pb-4 text-xs font-black uppercase tracking-widest transition-all relative",
+              activeTab === 'scheduled' ? "text-primary" : "text-text-tertiary hover:text-text"
+            )}
           >
-            Scheduled Imports
+            Scheduled Ingestion
+            {activeTab === 'scheduled' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
           </button>
-          <button 
+          <button
             onClick={() => switchTab('adhoc')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'adhoc' 
-                ? 'border-black text-black' 
-                : 'border-transparent text-[#666] hover:text-black'
-            }`}
+            className={cn(
+              "pb-4 text-xs font-black uppercase tracking-widest transition-all relative",
+              activeTab === 'adhoc' ? "text-primary" : "text-text-tertiary hover:text-text"
+            )}
           >
-            Ad-Hoc Uploads
+            Ad-Hoc Protocols
+            {activeTab === 'adhoc' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
           </button>
         </div>
 
         {/* --- STEP 1: Main Lists --- */}
         {step === 'list' && activeTab === 'scheduled' && (
-          <div className="animate-in fade-in slide-in-from-bottom-2">
+          <div className="space-y-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-semibold">Active Database Connections</h3>
-              <button 
+              <h3 className="text-[11px] font-black uppercase tracking-widest text-text-tertiary">Active Synchronizations</h3>
+              <button
                 onClick={() => setStep('db_creds')}
-                className="flex items-center gap-2 px-3 py-1.5 bg-black text-white text-xs font-medium rounded hover:bg-[#333]">
-                <Plus size={14} /> New Connection
+                className="btn btn-primary text-xs flex items-center gap-2">
+                <Plus size={14} /> Initialize Connection
               </button>
             </div>
-            
-            <div className="grid gap-4">
-              <div className="bg-white border border-[#eaeaea] rounded-lg p-5 flex items-start gap-4">
-                <div className="w-10 h-10 rounded bg-[#0070f3]/10 flex items-center justify-center text-[#0070f3] flex-shrink-0">
-                  <Database size={20} />
+
+            <div className="grid gap-6">
+              <div className="card p-6 flex flex-col md:flex-row items-start gap-6 group hover:border-primary/50 transition-all">
+                <div className="size-12 rounded-2xl bg-primary/5 border border-primary/10 flex items-center justify-center text-primary flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-all">
+                  <Database size={24} />
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="font-semibold text-sm">PostgreSQL - Production Users</h4>
-                      <p className="text-xs text-[#666] mt-0.5">jdbc:postgresql://prod-db.internal:5432/main</p>
+                      <h4 className="font-bold text-lg tracking-tight">PostgreSQL - Production Entities</h4>
+                      <p className="text-xs text-text-tertiary font-mono mt-1 opacity-60">jdbc:postgresql://compute-cluster.internal:5432/main</p>
                     </div>
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-[#ccfbf1] text-[#00701a] text-[10px] font-bold rounded uppercase tracking-wider">
-                      <Activity size={12} /> Healthy
+                    <div className="flex items-center gap-2 px-3 py-1 bg-success/10 text-success text-[10px] font-black rounded uppercase tracking-widest border border-success/20">
+                      <Activity size={12} className="animate-pulse" /> Live & Healthy
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-6 mt-4 pt-4 border-t border-[#eaeaea]">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mt-6 pt-6 border-t border-border-subtle">
                     <div>
-                      <p className="text-[10px] text-[#666] uppercase mb-1">Schedule</p>
-                      <p className="text-xs font-medium flex items-center gap-1.5">
-                        <Clock size={12} className="text-[#666]" /> Every 12 Hours
+                      <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mb-1">Interval</p>
+                      <p className="text-sm font-bold flex items-center gap-2">
+                        <Clock size={14} className="text-text-tertiary" /> Every 12H Cycle
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-[#666] uppercase mb-1">Last Sync</p>
-                      <p className="text-xs font-medium">Today, 04:30 AM</p>
+                      <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mb-1">Last Convergence</p>
+                      <p className="text-sm font-bold">14:32 UTC</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-[#666] uppercase mb-1">Rows Imported</p>
-                      <p className="text-xs font-medium font-mono">1.2M</p>
+                      <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mb-1">Entity Count</p>
+                      <p className="text-sm font-black font-mono tracking-tighter">1,248,902</p>
                     </div>
                   </div>
                 </div>
@@ -126,223 +125,199 @@ export function DataImportPage() {
         )}
 
         {step === 'list' && activeTab === 'adhoc' && (
-          <div className="animate-in fade-in slide-in-from-bottom-2 max-w-3xl mx-auto mt-8 text-center border-b border-[#eaeaea] pb-12">
-            <div className="bg-white border text-center border-dashed border-[#ccc] rounded-xl p-12 max-w-2xl mx-auto">
-              <div className="w-12 h-12 bg-[#fafafa] rounded-full flex items-center justify-center mx-auto mb-4 border border-[#eaeaea]">
-                <FileSpreadsheet className="text-[#666]" size={24} />
+          <div className="max-w-4xl mx-auto space-y-12">
+            <div className="card p-12 text-center border-dashed border-2 border-border-subtle hover:border-primary transition-all group bg-white shadow-2xl shadow-primary/5">
+              <div className="size-16 bg-surface-2 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-border group-hover:bg-primary group-hover:text-white transition-all">
+                <FileSpreadsheet className="text-text-tertiary group-hover:text-white" size={32} />
               </div>
-              <h3 className="text-base font-semibold mb-1">Upload CSV or Excel</h3>
-              <p className="text-sm text-[#666] mb-6">Drag and drop your file here, or click to browse.</p>
-              
-              <button 
+              <h3 className="text-xl font-bold tracking-tight mb-2">Ingest Vector Sets</h3>
+              <p className="text-sm text-text-tertiary mb-8 max-w-sm mx-auto">Drop your CSV, Parquet, or Excel files into the neural buffer for immediate ingestion.</p>
+
+              <button
                 onClick={handleFileUpload}
-                className="flex items-center justify-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium rounded hover:bg-[#333] mx-auto">
-                <Upload size={16} /> Choose File
+                className="btn btn-primary px-8 py-3 text-sm">
+                <Upload size={18} /> Select Source Files
               </button>
-              
-              <p className="text-xs text-[#999] mt-4">Max file size: 50MB. Supported formats: .csv, .xlsx</p>
             </div>
 
-            <div className="mt-12 text-left max-w-2xl mx-auto">
-               <h3 className="text-sm font-semibold mb-4">Recent Ad-Hoc Uploads</h3>
-               <div className="bg-white border border-[#eaeaea] rounded-lg flex flex-col overflow-hidden">
-                 <div className="flex items-center justify-between p-4 border-b border-[#eaeaea] hover:bg-[#fafafa]">
-                   <div className="flex items-center gap-4">
-                      <div className="w-8 h-8 rounded bg-[#fafafa] flex items-center justify-center border border-[#eaeaea]"><FileSpreadsheet size={16} className="text-[#666]"/></div>
-                      <div>
-                        <p className="text-sm font-medium">sales_q3_report.csv</p>
-                        <p className="text-xs text-[#666] mt-0.5">14.2 MB • Uploaded 2 hours ago</p>
+            <div className="space-y-6">
+              <h3 className="text-[11px] font-black uppercase tracking-widest text-text-tertiary">Recent Buffers</h3>
+              <div className="card divide-y divide-border-subtle overflow-hidden">
+                {[
+                  { name: 'q3_transaction_vectors.csv', size: '14.2 MB', time: '2H ago' },
+                  { name: 'user_behavior_dump.parquet', size: '3.1 MB', time: 'Yesterday' }
+                ].map((file, i) => (
+                  <div key={i} className="flex items-center justify-between p-5 hover:bg-surface-2 transition-all group">
+                    <div className="flex items-center gap-4">
+                      <div className="size-10 rounded-xl bg-surface-2 flex items-center justify-center border border-border group-hover:bg-white transition-all">
+                        <FileSpreadsheet size={18} className="text-text-tertiary" />
                       </div>
-                   </div>
-                   <span className="px-2 py-1 bg-[#ccfbf1] text-[#00701a] text-[10px] font-bold rounded uppercase tracking-wider">Imported</span>
-                 </div>
-                 <div className="flex items-center justify-between p-4 border-b border-[#eaeaea] hover:bg-[#fafafa]">
-                   <div className="flex items-center gap-4">
-                      <div className="w-8 h-8 rounded bg-[#fafafa] flex items-center justify-center border border-[#eaeaea]"><FileSpreadsheet size={16} className="text-[#666]"/></div>
                       <div>
-                        <p className="text-sm font-medium">employee_feedback_dump.xlsx</p>
-                        <p className="text-xs text-[#666] mt-0.5">3.1 MB • Uploaded yesterday</p>
+                        <p className="text-sm font-bold tracking-tight">{file.name}</p>
+                        <p className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest mt-1">{file.size} • {file.time}</p>
                       </div>
-                   </div>
-                   <span className="px-2 py-1 bg-[#ccfbf1] text-[#00701a] text-[10px] font-bold rounded uppercase tracking-wider">Imported</span>
-                 </div>
-               </div>
+                    </div>
+                    <span className="px-3 py-1 bg-success/5 text-success text-[10px] font-black rounded uppercase tracking-widest border border-success/20">Finalized</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* --- STEP 1.5: Database Credentials (SCHEDULED ONLY) --- */}
+        {/* --- STEP 1.5: Database Credentials --- */}
         {step === 'db_creds' && (
-          <div className="animate-in fade-in slide-in-from-right-4 max-w-2xl mx-auto mt-6 bg-white border border-[#eaeaea] rounded-xl shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-[#eaeaea] bg-[#fafafa]">
-              <h3 className="text-base font-semibold flex items-center gap-2">
-                <Database size={18} className="text-[#0070f3]"/> Connect to Database
+          <div className="animate-in slide-in-from-right duration-500 max-w-2xl mx-auto bg-white border border-border rounded-3xl shadow-2xl shadow-primary/10 overflow-hidden">
+            <div className="p-8 border-b border-border bg-surface-2/50">
+              <h3 className="text-xl font-bold tracking-tight flex items-center gap-3">
+                <Database size={24} className="text-primary" /> Operational Gate
               </h3>
-              <p className="text-sm text-[#666] mt-1.5">Provide credentials to securely connect to your database source.</p>
+              <p className="text-xs text-text-tertiary mt-1 uppercase font-bold tracking-widest">Provide cluster credentials for secure object replication.</p>
             </div>
-            
-            <form onSubmit={handleConnectDb} className="p-6 flex flex-col gap-6">
-              <div className="grid grid-cols-2 gap-5">
-                <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-[#666] mb-1.5 flex items-center gap-1.5">
-                    <Database size={14} className="text-[#999]"/> Database Type
-                  </label>
-                  <select className="w-full px-3 py-2 border border-[#eaeaea] rounded text-sm focus:outline-none focus:border-black bg-white">
-                    <option value="postgres">PostgreSQL</option>
-                    <option value="mysql">MySQL</option>
-                    <option value="snowflake">Snowflake</option>
+
+            <form onSubmit={handleConnectDb} className="p-8 space-y-8">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="col-span-2 space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Provider Architecture</label>
+                  <select className="input text-sm h-12">
+                    <option value="postgres">PostgreSQL / TimescaleDB</option>
+                    <option value="mysql">MySQL Cluster</option>
+                    <option value="snowflake">Snowflake Warehouse</option>
                   </select>
                 </div>
-                
-                <div className="col-span-2 md:col-span-1">
-                  <label className="block text-xs font-semibold text-[#666] mb-1.5 flex items-center gap-1.5">
-                    <Server size={14} className="text-[#999]"/> Host / Endpoint
-                  </label>
-                  <input type="text" required placeholder="db.example.com" className="w-full px-3 py-2 border border-[#eaeaea] rounded text-sm focus:outline-none focus:border-black transition-colors" />
-                </div>
-                
-                <div className="col-span-2 md:col-span-1">
-                  <label className="block text-xs font-semibold text-[#666] mb-1.5 flex items-center gap-1.5">
-                    <Server size={14} className="text-[#999]"/> Port
-                  </label>
-                  <input type="text" required defaultValue="5432" className="w-full px-3 py-2 border border-[#eaeaea] rounded text-sm focus:outline-none focus:border-black transition-colors" />
+
+                <div className="col-span-2 md:col-span-1 space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Endpoint</label>
+                  <input type="text" required placeholder="db.infra.internal" className="input text-sm h-12" />
                 </div>
 
-                <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-[#666] mb-1.5 flex items-center gap-1.5">
-                    <Database size={14} className="text-[#999]"/> Database Name
-                  </label>
-                  <input type="text" required placeholder="production_main" className="w-full px-3 py-2 border border-[#eaeaea] rounded text-sm focus:outline-none focus:border-black transition-colors" />
+                <div className="col-span-2 md:col-span-1 space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Port</label>
+                  <input type="text" required defaultValue="5432" className="input text-sm h-12" />
                 </div>
 
-                <div className="col-span-2 md:col-span-1">
-                  <label className="block text-xs font-semibold text-[#666] mb-1.5 flex items-center gap-1.5">
-                    <User size={14} className="text-[#999]"/> Username
-                  </label>
-                  <input type="text" required placeholder="postgres" className="w-full px-3 py-2 border border-[#eaeaea] rounded text-sm focus:outline-none focus:border-black transition-colors" />
+                <div className="col-span-2 space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Internal Schema</label>
+                  <input type="text" required placeholder="production_v1" className="input text-sm h-12" />
                 </div>
 
-                <div className="col-span-2 md:col-span-1">
-                  <label className="block text-xs font-semibold text-[#666] mb-1.5 flex items-center gap-1.5">
-                    <Key size={14} className="text-[#999]"/> Password
-                  </label>
-                  <input type="password" required placeholder="••••••••" className="w-full px-3 py-2 border border-[#eaeaea] rounded text-sm focus:outline-none focus:border-black transition-colors" />
+                <div className="col-span-2 md:col-span-1 space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Identity</label>
+                  <input type="text" required placeholder="svc_account" className="input text-sm h-12" />
+                </div>
+
+                <div className="col-span-2 md:col-span-1 space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Key Protocol</label>
+                  <input type="password" required placeholder="••••••••" className="input text-sm h-12" />
                 </div>
               </div>
 
-              <div className="pt-5 mt-2 border-t border-[#eaeaea] flex justify-end gap-3">
-                <button type="button" onClick={() => setStep('list')} className="px-5 py-2 border border-[#eaeaea] text-[#333] text-sm font-medium rounded hover:bg-[#fafafa]">
-                  Cancel
-                </button>
-                <button type="submit" className="px-5 py-2 bg-black text-white text-sm font-medium rounded hover:bg-[#333] flex items-center gap-2">
-                  Test & Connect <ArrowRight size={16} />
+              <div className="pt-6 border-t border-border flex justify-end gap-3">
+                <button type="button" onClick={() => setStep('list')} className="btn btn-secondary px-8">Esc</button>
+                <button type="submit" className="btn btn-primary px-8 flex items-center gap-2">
+                  Verify & Connect <ArrowRight size={16} />
                 </button>
               </div>
             </form>
           </div>
         )}
 
-        {/* --- STEP 2: Configure & Preview (SHARED) --- */}
+        {/* --- STEP 2: Configure & Preview --- */}
         {step === 'preview' && (
-          <div className="animate-in fade-in slide-in-from-right-4 max-w-5xl mx-auto flex flex-col gap-6">
-            
-            {/* Configuration Panel */}
-            <div className="bg-white border border-[#eaeaea] rounded-lg w-full flex flex-col">
-              <div className="p-6 border-b border-[#eaeaea] flex justify-between items-center">
+          <div className="animate-in slide-in-from-right duration-500 max-w-6xl mx-auto space-y-8">
+
+            <div className="card overflow-hidden">
+              <div className="p-8 border-b border-border bg-white flex justify-between items-center">
                 <div>
-                  <h3 className="text-lg font-semibold flex items-center gap-2">
-                    {activeTab === 'scheduled' ? <Database className="text-[#0070f3]" size={20} /> : <FileSpreadsheet className="text-[#0070f3]" size={20} />}
+                  <div className="flex items-center gap-3 text-primary font-black tracking-tighter text-2xl uppercase">
+                    {activeTab === 'scheduled' ? <Database size={24} /> : <FileSpreadsheet size={24} />}
                     {sourceName}
-                  </h3>
-                  <p className="text-sm text-[#666] mt-1">Configure {activeTab === 'scheduled' ? 'sync destination' : 'table destination'} and preview data.</p>
+                  </div>
+                  <p className="text-xs text-text-tertiary font-bold tracking-widest uppercase mt-1">Staging Layer Configuration</p>
                 </div>
                 <div className="flex gap-3">
-                  <button 
+                  <button
                     onClick={() => activeTab === 'scheduled' ? setStep('db_creds') : setStep('list')}
-                    className="px-5 py-2 border border-[#eaeaea] text-[#333] text-sm font-medium rounded hover:bg-[#fafafa]">
-                    Back
+                    className="btn btn-secondary px-6">
+                    Revise
                   </button>
-                  <button 
+                  <button
                     onClick={handleImport}
-                    className="px-5 py-2 bg-black text-white text-sm font-medium rounded hover:bg-[#333] flex items-center gap-2">
-                    {activeTab === 'scheduled' ? 'Create Sync' : 'Start Import'} <ArrowRight size={16} />
+                    className="btn btn-primary px-8 flex items-center gap-2 shadow-xl shadow-primary/10">
+                    {activeTab === 'scheduled' ? 'Establish Sync' : 'Finalize Import'} <ArrowRight size={16} />
                   </button>
                 </div>
               </div>
 
-              <div className="p-6 grid grid-cols-2 gap-12">
-                {/* Target Configuration */}
-                <div>
-                  <h4 className="text-sm font-semibold mb-4 border-b border-[#eaeaea] pb-2">Destination Target</h4>
-                  <div className="flex flex-col gap-1.5 mb-4">
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input 
-                          type="radio" 
-                          name="target" 
-                          value="new_table"
-                          checked={targetTable === 'new_table'}
-                          onChange={(e) => setTargetTable(e.target.value)}
-                          className="accent-black"
-                        />
-                        Create New Table
-                      </label>
-                      <label className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input 
-                          type="radio" 
-                          name="target" 
-                          value="existing"
-                          checked={targetTable === 'existing'}
-                          onChange={(e) => setTargetTable(e.target.value)}
-                          className="accent-black"
-                        />
-                        Append to Existing
-                      </label>
-                    </div>
+              <div className="p-8 grid grid-cols-2 gap-16">
+                <div className="space-y-6">
+                  <h4 className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-b border-border-subtle pb-3">Destination Geometry</h4>
+                  <div className="flex gap-8">
+                    <label className="flex items-center gap-3 text-xs font-bold cursor-pointer group">
+                      <input
+                        type="radio"
+                        name="target"
+                        value="new_table"
+                        checked={targetTable === 'new_table'}
+                        onChange={(e) => setTargetTable(e.target.value)}
+                        className="accent-primary size-4"
+                      />
+                      Generate New Target
+                    </label>
+                    <label className="flex items-center gap-3 text-xs font-bold cursor-pointer group">
+                      <input
+                        type="radio"
+                        name="target"
+                        value="existing"
+                        checked={targetTable === 'existing'}
+                        onChange={(e) => setTargetTable(e.target.value)}
+                        className="accent-primary size-4"
+                      />
+                      Append to Cluster
+                    </label>
                   </div>
 
                   {targetTable === 'new_table' ? (
-                    <div>
-                      <label className="block text-xs font-semibold text-[#666] mb-1.5">New Table Name</label>
-                      <input 
-                        type="text" 
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Object Identifier</label>
+                      <input
+                        type="text"
                         value={newTableName}
                         onChange={(e) => setNewTableName(e.target.value)}
-                        className="w-full px-3 py-2 border border-[#eaeaea] rounded text-sm focus:outline-none focus:border-black"
-                        placeholder="Enter table name..."
+                        className="input text-sm h-12"
+                        placeholder="namespace.table_name"
                       />
                     </div>
                   ) : (
-                    <div>
-                      <label className="block text-xs font-semibold text-[#666] mb-1.5">Select Existing Table</label>
-                      <select className="w-full px-3 py-2 border border-[#eaeaea] rounded text-sm focus:outline-none focus:border-black bg-white">
-                        <option>public.employees</option>
-                        <option>public.sales_data</option>
-                        <option>public.churn_metrics</option>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Target Entity</label>
+                      <select className="input text-sm h-12">
+                        <option>production.main_vectors</option>
+                        <option>historical.archive_set</option>
                       </select>
                     </div>
                   )}
                 </div>
 
-                {/* Additional Config (Schedule for DB) */}
                 {activeTab === 'scheduled' && (
-                  <div>
-                    <h4 className="text-sm font-semibold mb-4 border-b border-[#eaeaea] pb-2">Sync Schedule</h4>
-                    <div>
-                      <label className="block text-xs font-semibold text-[#666] mb-1.5">Frequency</label>
-                      <select 
-                        value={scheduleFreq}
-                        onChange={e => setScheduleFreq(e.target.value)}
-                        className="w-full px-3 py-2 border border-[#eaeaea] rounded text-sm focus:outline-none focus:border-black bg-white mb-4">
-                        <option value="hourly">Every Hour</option>
-                        <option value="daily">Daily (Midnight)</option>
-                        <option value="weekly">Weekly (Sunday)</option>
-                        <option value="custom">Custom Cron...</option>
-                      </select>
-                      
-                      <label className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="checkbox" defaultChecked className="accent-black rounded" />
-                        Run initial sync immediately
+                  <div className="space-y-6">
+                    <h4 className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-b border-border-subtle pb-3">Temporal Sync Protocol</h4>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Cadence</label>
+                        <select
+                          value={scheduleFreq}
+                          onChange={e => setScheduleFreq(e.target.value)}
+                          className="input text-sm h-12">
+                          <option value="hourly">Real-time (Hourly)</option>
+                          <option value="daily">Nightly Batch (00:00)</option>
+                          <option value="weekly">Weekly Audit (Sun)</option>
+                        </select>
+                      </div>
+
+                      <label className="flex items-center gap-3 text-xs font-bold cursor-pointer mt-4">
+                        <input type="checkbox" defaultChecked className="accent-primary size-4 rounded" />
+                        Execute initial convergence immediate
                       </label>
                     </div>
                   </div>
@@ -350,47 +325,33 @@ export function DataImportPage() {
               </div>
             </div>
 
-            {/* Data Preview Panel (SHARED) */}
-            <div className="bg-white border border-[#eaeaea] rounded-lg flex flex-col overflow-hidden">
-              <div className="px-6 py-4 border-b border-[#eaeaea] flex items-center justify-between bg-[#fafafa]">
-                <h4 className="text-sm font-semibold flex items-center gap-2">
-                  <Table size={16} className="text-[#666]" /> Sample Data Preview
+            {/* Data Preview Panel */}
+            <div className="card overflow-hidden">
+              <div className="px-8 py-5 border-b border-border flex items-center justify-between bg-surface-2/30">
+                <h4 className="text-[11px] font-black flex items-center gap-3 uppercase tracking-widest text-text-tertiary">
+                  <Table size={16} /> Data Pre-Visualization
                 </h4>
-                <span className="text-xs text-[#666] font-mono">Previewing first 5 rows</span>
+                <span className="text-[9px] font-bold text-primary bg-primary/5 px-3 py-1 rounded-full uppercase tracking-widest border border-primary/20">Head Buffer (5 Rows)</span>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-sm">
+                <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-[#eaeaea] bg-white">
-                      <th className="px-4 py-3 font-semibold text-[#333] border-r border-[#eaeaea]">id <span className="text-[#999] font-normal text-xs ml-2">int</span></th>
-                      <th className="px-4 py-3 font-semibold text-[#333] border-r border-[#eaeaea]">name <span className="text-[#999] font-normal text-xs ml-2">string</span></th>
-                      <th className="px-4 py-3 font-semibold text-[#333] border-r border-[#eaeaea]">email <span className="text-[#999] font-normal text-xs ml-2">string</span></th>
-                      <th className="px-4 py-3 font-semibold text-[#333] border-r border-[#eaeaea]">department <span className="text-[#999] font-normal text-xs ml-2">string</span></th>
-                      <th className="px-4 py-3 font-semibold text-[#333]">salary <span className="text-[#999] font-normal text-xs ml-2">float</span></th>
+                    <tr className="border-b border-border bg-white">
+                      {['ID', 'ENTITY_NAME', 'METADATA_LOC', 'DOMAIN', 'QUANT_VAL'].map(h => (
+                        <th key={h} className="px-6 py-4 font-black text-text-tertiary tracking-widest uppercase border-r border-border-subtle last:border-0">{h}</th>
+                      ))}
                     </tr>
                   </thead>
-                  <tbody className="font-mono text-xs">
-                    <tr className="border-b border-[#eaeaea] hover:bg-[#fafafa]">
-                      <td className="px-4 py-2 border-r border-[#eaeaea]">1</td>
-                      <td className="px-4 py-2 border-r border-[#eaeaea]">Alice Smith</td>
-                      <td className="px-4 py-2 border-r border-[#eaeaea]">alice@acme.inc</td>
-                      <td className="px-4 py-2 border-r border-[#eaeaea]">Engineering</td>
-                      <td className="px-4 py-2">95000.00</td>
-                    </tr>
-                    <tr className="border-b border-[#eaeaea] hover:bg-[#fafafa]">
-                      <td className="px-4 py-2 border-r border-[#eaeaea]">2</td>
-                      <td className="px-4 py-2 border-r border-[#eaeaea]">Bob Jones</td>
-                      <td className="px-4 py-2 border-r border-[#eaeaea]">bob@acme.inc</td>
-                      <td className="px-4 py-2 border-r border-[#eaeaea]">Marketing</td>
-                      <td className="px-4 py-2">72500.00</td>
-                    </tr>
-                    <tr className="border-b border-[#eaeaea] hover:bg-[#fafafa]">
-                      <td className="px-4 py-2 border-r border-[#eaeaea]">3</td>
-                      <td className="px-4 py-2 border-r border-[#eaeaea]">Charlie Brown</td>
-                      <td className="px-4 py-2 border-r border-[#eaeaea]">charlie@acme.inc</td>
-                      <td className="px-4 py-2 border-r border-[#eaeaea]">Sales</td>
-                      <td className="px-4 py-2">88000.00</td>
-                    </tr>
+                  <tbody className="font-mono divide-y divide-border-subtle">
+                    {[1, 2, 3, 4, 5].map(i => (
+                      <tr key={i} className="hover:bg-surface-2 transition-all group">
+                        <td className="px-6 py-3 border-r border-border-subtle group-last:border-r">{i}</td>
+                        <td className="px-6 py-3 border-r border-border-subtle font-bold text-text truncate">Entity_Alpha_{i * 92}</td>
+                        <td className="px-6 py-3 border-r border-border-subtle opacity-50 truncate">meta.internal/node_{i}</td>
+                        <td className="px-6 py-3 border-r border-border-subtle font-bold">{i % 2 === 0 ? 'Engineering' : 'Global Ops'}</td>
+                        <td className="px-6 py-3 font-black text-primary">{(Math.random() * 100000).toFixed(2)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -398,16 +359,21 @@ export function DataImportPage() {
           </div>
         )}
 
-        {/* --- STEP 3: Success (SHARED) --- */}
+        {/* --- STEP 3: Success --- */}
         {step === 'success' && (
-          <div className="max-w-md mx-auto mt-12 bg-white border border-[#eaeaea] rounded-xl p-8 text-center animate-in zoom-in-95 shadow-sm">
-            <CheckCircle2 size={48} className="mx-auto text-[#0070f3] mb-4" />
-            <h3 className="text-xl font-semibold mb-2">
-              {activeTab === 'scheduled' ? 'Connection Established' : 'Import Successful'}
+          <div className="max-w-xl mx-auto mt-24 card p-12 text-center animate-in zoom-in duration-500 shadow-2xl shadow-primary/20 bg-white">
+            <div className="size-20 bg-success/10 text-success rounded-full flex items-center justify-center mx-auto mb-8 border border-success/20 animate-bounce">
+              <CheckCircle2 size={40} />
+            </div>
+            <h3 className="text-3xl font-black tracking-tighter mb-4">
+              {activeTab === 'scheduled' ? 'Convergence Verified' : 'Buffer Finalized'}
             </h3>
-            <p className="text-sm text-[#666]">
-              Data {activeTab === 'scheduled' ? 'sync' : 'import'} has been successfully configured for <strong className="text-black">{targetTable === 'new_table' ? newTableName : 'existing table'}</strong>. 
+            <p className="text-sm text-text-tertiary max-w-sm mx-auto leading-relaxed">
+              Object stream successfully mapped to <strong className="text-primary">{targetTable === 'new_table' ? newTableName : 'existing cluster'}</strong>. Pipeline initialized.
             </p>
+            <div className="mt-12">
+              <button onClick={() => setStep('list')} className="btn btn-primary px-12 py-3 text-xs">Return to Workspace</button>
+            </div>
           </div>
         )}
 

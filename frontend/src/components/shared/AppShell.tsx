@@ -1,49 +1,82 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { cn } from "../../lib/cn";
-import { workspace, datasets } from "../../lib/mocks/data";
+import { useAppContext } from "../../lib/context/AppContext";
 
 const navGroups = [
   {
     title: "Overview",
-    items: [{ to: "/", label: "Project Home" }]
+    items: [{
+      to: "/", label: "Project Home", icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+      )
+    }]
   },
   {
-    title: "Data Foundation",
+    title: "Data Engine",
     items: [
-      { to: "/data-import", label: "Data Import" },
-      { to: "/data-transform", label: "Data Transformation" }
+      {
+        to: "/data-import", label: "Source Import", icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+        )
+      },
+      {
+        to: "/data-transform", label: "Pipeline Studio", icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.675.337a4 4 0 01-2.574.345l-2.313-.463c-.574-.115-1.155.032-1.536.413l-1.119 1.119a2 2 0 01-2.828 0l-3.536-3.536a2 2 0 010-2.828l1.119-1.119a2 2 0 00.413-1.536L4.057 6.42a4 4 0 01.345-2.574l.338-.675a6 6 0 00.517-3.861L4.78 1.056a2 2 0 00-.547-1.022L2.73 2.73a2 2 0 000 2.828l3.536 3.536a2 2 0 002.828 0L9.11 9.11a2 2 0 011.536-.413l2.313.463a4 4 0 002.574-.345l.675-.338a6 6 0 013.861-.517l2.387.477a2 2 0 011.022.547l1.503 1.503z" /></svg>
+        )
+      }
     ]
   },
   {
-    title: "Exploration",
+    title: "Intelligence",
     items: [
-      { to: "/query-studio", label: "AI Query Studio" },
-      { to: "/eda-dashboards", label: "Dashboards & Reports" }
+      {
+        to: "/query-studio", label: "AI Query Studio", icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+        )
+      },
+      {
+        to: "/eda-dashboards", label: "Visual Dashboards", icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+        )
+      }
     ]
   },
   {
-    title: "Machine Learning",
+    title: "Predictive Models",
     items: [
-      { to: "/ml-training", label: "Model Training" },
-      { to: "/ml-prediction", label: "Model Prediction" }
+      {
+        to: "/automl-lab", label: "AutoML Lab", icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.675.337a4 4 0 01-2.574.345l-2.313-.463c-.574-.115-1.155.032-1.536.413l-1.119 1.119a2 2 0 01-2.828 0l-3.536-3.536a2 2 0 010-2.828l1.119-1.119a2 2 0 00.413-1.536L4.057 6.42a4 4 0 01.345-2.574l.338-.675a6 6 0 00.517-3.861L4.78 1.056a2 2 0 00-.547-1.022L2.73 2.73a2 2 0 000 2.828l3.536 3.536a2 2 0 002.828 0L9.11 9.11a2 2 0 011.536-.413l2.313.463a4 4 0 002.574-.345l.675-.338a6 6 0 013.861-.517l2.387.477a2 2 0 011.022.547l1.503 1.503z" /></svg>
+        )
+      },
+      {
+        to: "/ml-training", label: "Model Training", icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+        )
+      },
+      {
+        to: "/ml-prediction", label: "Model Prediction", icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+        )
+      }
     ]
-  },
-  {
-    title: "Production",
-    items: [{ to: "/deploy-sim", label: "Endpoints & Scoring" }]
   }
 ];
 
 function navClass(isActive: boolean): string {
   return cn(
-    "block rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-    isActive ? "bg-surface-2 text-text" : "text-text-secondary hover:bg-surface-2/50 hover:text-text"
+    "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200 group",
+    isActive
+      ? "bg-primary text-white shadow-md shadow-primary/10 scale-[1.02]"
+      : "text-text-secondary hover:bg-surface-2 hover:text-text hover:translate-x-1"
   );
 }
 
 export function AppShell() {
+  const { workspace, activeDataset } = useAppContext();
   const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const breadcrumb = useMemo(() => {
     for (const group of navGroups) {
@@ -52,44 +85,52 @@ export function AppShell() {
         if (item.to !== "/" && location.pathname.startsWith(item.to)) return item.label;
       }
     }
-    if (location.pathname.includes("workspace-settings")) return "Workspace Settings";
+    if (location.pathname.includes("workspace-settings")) return "Settings";
     return "Project Home";
   }, [location.pathname]);
 
-  const activeDataset = datasets.find((item) => item.id === workspace.activeDatasetId);
-
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-bg text-text">
-      {/* Sidebar - Desktop */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r bg-surface lg:flex">
-        {/* Global/Tenant Switcher */}
-        <div className="border-b px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 font-heading font-semibold text-text">
-            <div className="flex size-6 items-center justify-center rounded-md bg-primary text-xs text-white">K</div>
-            KnowRep
-          </div>
-        </div>
-
-        {/* Project Selector */}
-        <div className="p-4 pb-2">
-          <div className="flex flex-col gap-1 rounded-lg border border-border-subtle bg-surface-2/50 px-3 py-2 shadow-sm cursor-pointer hover:border-accent/30 transition-colors">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">Current Project</p>
-            <div className="flex items-center justify-between">
-              <p className="truncate text-sm font-medium text-text">{workspace.name}</p>
-              <span className="text-xs text-text-tertiary">▼</span>
+    <div className="flex h-screen w-full overflow-hidden bg-bg text-text font-sans">
+      {/* Sidebar - Pro Design */}
+      <aside className="hidden w-[var(--sidebar-w)] shrink-0 flex-col border-r border-border bg-surface lg:flex">
+        {/* Brand/Header */}
+        <div className="h-[var(--header-h)] border-b border-border px-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-white shadow-lg shadow-primary/20">
+              <span className="text-sm font-bold">K</span>
             </div>
-            <p className="mt-1 text-[10px] uppercase tracking-wider text-text-tertiary">Dataset: <span className="font-medium text-text">{activeDataset?.name ?? "None"}</span></p>
+            <span className="text-base font-bold tracking-tight text">KnowRep</span>
           </div>
         </div>
 
-        {/* Grouped Navigation */}
+        {/* Project Selector / Context */}
+        <div className="px-4 pt-6 pb-2">
+          <button className="w-full text-left rounded-xl border border-border-subtle bg-surface-2/30 hover:bg-surface-2/60 px-4 py-3 transition-all group">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary mb-1">Project Space</p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text truncate">{workspace.name}</span>
+              <svg className="w-3.5 h-3.5 text-text-tertiary group-hover:text-text transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </div>
+            {activeDataset && (
+              <div className="mt-2 flex items-center gap-1.5 overflow-hidden">
+                <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                <span className="text-[11px] text-text-secondary truncate">{activeDataset.name}</span>
+              </div>
+            )}
+          </button>
+        </div>
+
+        {/* Navigation */}
         <nav className="flex-1 space-y-6 overflow-y-auto px-4 py-4">
           {navGroups.map((group) => (
             <div key={group.title}>
-              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">{group.title}</p>
-              <div className="space-y-0.5">
+              <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-text-tertiary opacity-80">
+                {group.title}
+              </p>
+              <div className="space-y-1">
                 {group.items.map((item) => (
                   <NavLink key={item.to} to={item.to} className={({ isActive }) => navClass(isActive)}>
+                    <span className="group-hover:scale-110 transition-transform">{item.icon}</span>
                     {item.label}
                   </NavLink>
                 ))}
@@ -97,36 +138,81 @@ export function AppShell() {
             </div>
           ))}
         </nav>
-        
-        {/* Bottom Settings */}
-        <div className="border-t border-border-subtle p-4">
+
+        {/* User / Bottom */}
+        <div className="p-4 border-t border-border">
           <NavLink to="/workspace-settings" className={({ isActive }) => navClass(isActive)}>
-            Workspace Settings
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            System Settings
           </NavLink>
         </div>
       </aside>
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4 lg:px-8">
-          <div className="flex items-center gap-3">
-            <p className="text-sm font-medium text-text">
-              {breadcrumb}
-            </p>
+        {/* Modern Header */}
+        <header className="h-[var(--header-h)] shrink-0 px-8 flex items-center justify-between border-b border-border bg-white z-10">
+          <div className="flex items-center gap-6">
+            <button
+              className="lg:hidden p-2 hover:bg-surface-2 rounded-xl transition-colors"
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <svg className="w-5 h-5 text" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </button>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-text-tertiary font-medium">Platform</span>
+              <svg className="w-4 h-4 text-text-tertiary/40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              <span className="text font-bold tracking-tight">{breadcrumb}</span>
+            </div>
           </div>
-          <div className="hidden items-center gap-4 lg:flex">
-            <div className="flex items-center gap-2 text-xs text-text-tertiary border-r border-border-subtle pr-4">
-              <span className="flex h-2 w-2 rounded-full bg-success"></span>
-              Environment: Production
+
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:flex items-center gap-4 mr-4">
+              <div className="px-3 py-1 rounded-full bg-success-muted text-success text-[10px] font-bold uppercase tracking-wider flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                Cluster Live
+              </div>
+              <div className="w-px h-4 bg-border" />
             </div>
-            <div className="flex size-7 items-center justify-center rounded-full bg-accent-light text-xs font-medium text-accent">
+
+            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-2 border border-border text-xs font-bold hover:bg-surface-3 transition-colors">
               {workspace.owner.charAt(0)}
-            </div>
+            </button>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-8 bg-bg">
-          <div className="mx-auto max-w-[1200px]">
+        {/* Mobile Navigation Drawer */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden fixed inset-0 z-[100] flex">
+            <div className="w-[var(--sidebar-w)] bg-white h-full flex flex-col shadow-2xl animate-in slide-in-from-left duration-300">
+              <div className="h-[var(--header-h)] border-b px-6 flex items-center justify-between">
+                <span className="font-bold">Menu</span>
+                <button onClick={() => setMobileMenuOpen(false)} className="p-2 hover:bg-surface-2 rounded-xl">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                {navGroups.map((group) => (
+                  <div key={group.title}>
+                    <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-text-tertiary">{group.title}</p>
+                    <div className="space-y-1">
+                      {group.items.map((item) => (
+                        <NavLink key={item.to} to={item.to} onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => navClass(isActive)}>
+                          {item.icon}
+                          {item.label}
+                        </NavLink>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+          </div>
+        )}
+
+        <main className="flex-1 overflow-y-auto bg-bg/50 p-8">
+          <div className="max-w-[1400px] mx-auto">
             <Outlet />
           </div>
         </main>

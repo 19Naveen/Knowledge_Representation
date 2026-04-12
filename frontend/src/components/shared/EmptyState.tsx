@@ -6,13 +6,13 @@ type EmptyStateProps = {
 
 export function EmptyState({ title, description, actionLabel }: EmptyStateProps) {
   return (
-    <section className="rounded-xl border border-dashed bg-surface p-8 text-center shadow-sm">
-      <h3 className="text-base font-semibold text-text">{title}</h3>
-      <p className="mx-auto mt-2 max-w-sm text-sm text-muted">{description}</p>
+    <section className="rounded-lg border border-dashed border-border bg-surface p-8 text-center">
+      <h3 className="text-sm font-semibold text">{title}</h3>
+      <p className="mx-auto mt-1.5 max-w-sm text-[13px] text-text-secondary">{description}</p>
       {actionLabel ? (
         <button
           type="button"
-          className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 shadow-sm"
+          className="btn btn-primary mt-4 text-sm"
         >
           {actionLabel}
         </button>

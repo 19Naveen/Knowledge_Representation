@@ -1,34 +1,57 @@
 :root {
-  /* Refined, sophisticated palette - business-grade */
-  --bg: 220 20% 98%;
+  /* Ultra-Premium SDaaS Palette */
+  --bg: 0 0% 100%;
   --surface: 0 0% 100%;
-  --surface-2: 220 10% 96%;
-  --surface-3: 220 8% 92%;
-  
-  --border: 220 10% 85%;
-  --border-subtle: 220 15% 92%;
+  --surface-2: 240 5% 96%;
+  --surface-3: 240 5% 92%;
 
-  /* Text hierarchy */
-  --text: 222 47% 11%;
-  --text-secondary: 222 20% 40%;
-  --text-tertiary: 222 15% 55%;
+  --border: 240 5% 90%;
+  --border-subtle: 240 5% 94%;
 
-  /* Primary - refined charcoal */
-  --primary: 222 47% 11%;
-  --primary-light: 222 30% 20%;
-  --primary-muted: 222 20% 92%;
+  --text: 240 10% 4%;
+  --text-secondary: 240 5% 35%;
+  --text-tertiary: 240 5% 60%;
 
-  /* Accent - sophisticated indigo */
-  --accent: 243 75% 59%;
-  --accent-light: 243 75% 90%;
-  
+  /* Primary: Deep Indigo/Black mix */
+  --primary: 240 10% 4%;
+  --primary-light: 240 10% 15%;
+  --primary-muted: 240 10% 96%;
+
+  /* Accent: Electric Blue */
+  --accent: 221 83% 53%;
+  --accent-light: 221 83% 96%;
+
   /* Semantic */
   --success: 142 76% 36%;
-  --success-muted: 142 60% 90%;
+  --success-muted: 142 76% 96%;
   --warning: 38 92% 50%;
-  --warning-muted: 38 90% 90%;
-  --danger: 348 82% 53%;
-  --danger-muted: 348 80% 90%;
-  --info: 217 91% 60%;
-  --info-muted: 217 80% 92%;
+  --warning-muted: 38 92% 96%;
+  --danger: 0 84% 60%;
+  --danger-muted: 0 84% 96%;
+  --info: 199 89% 48%;
+  --info-muted: 199 89% 96%;
+
+  --sidebar-w: 260px;
+  --header-h: 64px;
+}
+
+[data-theme='dark'] {
+  --bg: 240 10% 4%;
+  --surface: 240 10% 6%;
+  --surface-2: 240 10% 9%;
+  --surface-3: 240 10% 12%;
+
+  --border: 240 10% 12%;
+  --border-subtle: 240 10% 10%;
+
+  --text: 0 0% 100%;
+  --text-secondary: 240 5% 70%;
+  --text-tertiary: 240 5% 45%;
+
+  --primary: 0 0% 100%;
+  --primary-light: 0 0% 90%;
+  --primary-muted: 240 10% 12%;
+
+  --accent: 221 83% 60%;
+  --accent-light: 221 83% 15%;
 }

@@ -29,9 +29,9 @@ export default {
         "info-muted": "hsl(var(--info-muted) / <alpha-value>)"
       },
       fontFamily: {
-        heading: ["Sora", "sans-serif"],
-        sans: ["IBM Plex Sans", "sans-serif"],
-        mono: ["IBM Plex Mono", "monospace"]
+        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+        heading: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["JetBrains Mono", "Menlo", "Monaco", "monospace"]
       },
       fontSize: {
         "2xs": ["0.625rem", { lineHeight: "1rem", letterSpacing: "0.02em" }]
@@ -39,20 +39,19 @@ export default {
       boxShadow: {
         "soft-lg": "0 12px 40px -12px rgba(0, 0, 0, 0.08)",
         "soft-md": "0 8px 24px -8px rgba(0, 0, 0, 0.06)",
-        "soft-sm": "0 4px 12px -4px rgba(0, 0, 0, 0.04)",
+        "soft-sm": "0 2px 8px -2px rgba(0, 0, 0, 0.05)",
         "inner-soft": "inset 0 2px 4px rgba(0, 0, 0, 0.02)"
       },
       borderRadius: {
         "4xl": "2rem"
       },
       transitionTimingFunction: {
-        "smooth": "cubic-bezier(0.4, 0, 0.2, 1)",
-        "bounce": "cubic-bezier(0.68, -0.55, 0.265, 1.55)"
+        smooth: "cubic-bezier(0.4, 0, 0.2, 1)"
       },
       animation: {
-        "fade-in": "fadeIn 0.3s ease-out",
-        "slide-up": "slideUp 0.3s ease-out",
-        "scale-in": "scaleIn 0.2s ease-out"
+        "fade-in": "fadeIn 0.2s ease-out",
+        "slide-up": "slideUp 0.2s ease-out",
+        "scale-in": "scaleIn 0.15s ease-out"
       },
       keyframes: {
         fadeIn: {
@@ -60,11 +59,11 @@ export default {
           "100%": { opacity: "1" }
         },
         slideUp: {
-          "0%": { opacity: "0", transform: "translateY(8px)" },
+          "0%": { opacity: "0", transform: "translateY(4px)" },
           "100%": { opacity: "1", transform: "translateY(0)" }
         },
         scaleIn: {
-          "0%": { opacity: "0", transform: "scale(0.95)" },
+          "0%": { opacity: "0", transform: "scale(0.98)" },
           "100%": { opacity: "1", transform: "scale(1)" }
         }
       }
