@@ -1,0 +1,17 @@
+from pydantic import Field
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    JWT_SECRET: str = Field(..., env="JWT_SECRET")
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(..., env="ACCESS_TOKEN_EXPIRE_MINUTES")
+    TOKEN_ISSUER: str = "knowledge-representation-api"
+    TOKEN_AUDIENCE: str = "knowledge-representation-frontend"
+    DATABASE_URL: str = Field(..., env="DATABASE_URL")
+    LOG_LEVEL: str = "info" 
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+settings = Settings()

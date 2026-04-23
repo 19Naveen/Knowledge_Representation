@@ -9,3 +9,10 @@ langchain-google-genai
 streamlit
 chardet
 SQLAlchemy
+fastapi
+python-jose[cryptography]
+bcrypt
+psycopg2-binary>=2.9.0
+alembic>=1.13.0
+uvicorn[standard]>=0.30.0
+pydantic-settings>=2.0.0

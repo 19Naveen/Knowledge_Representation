@@ -2,8 +2,8 @@ from langchain.memory import ConversationBufferMemory
 from langchain.chains.llm import LLMChain
 from langchain.agents import AgentExecutor, ZeroShotAgent
 import streamlit as st
-import backend.src.chat_with_csv.ui_template as ui
-from backend.src.chat_with_csv.agent_tools import get_sqlite_engine, describe_dataset, database_tool,pretty_print_result, handle_unexpected_query
+import src.chat_with_csv.ui_template as ui
+from src.chat_with_csv.agent_tools import get_sqlite_engine, describe_dataset, database_tool,pretty_print_result, handle_unexpected_query
 
 
 def get_tools():

@@ -9,7 +9,7 @@ from operator import itemgetter
 from langchain_core.output_parsers import StrOutputParser
 from langchain.chains.sql_database.query import create_sql_query_chain
 import streamlit as st
-import backend.src.Tools as Tools 
+import src.Tools as Tools 
 
 @st.cache_resource
 def get_sqlite_engine():
