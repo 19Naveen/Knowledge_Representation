@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.router import api_router
-from core.init_db import init_db
+from core.database import init_db
 
 
 # Initialize database tables on startup

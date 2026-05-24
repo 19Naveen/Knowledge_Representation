@@ -3,7 +3,7 @@ import { PageHeader } from "../../components/shared/PageHeader";
 import { Database, FileSpreadsheet, Activity, Clock, Upload, Plus, Table, CheckCircle2, ArrowRight, Server, Key, User } from "lucide-react";
 import { cn } from "../../lib/cn";
 
-type Step = 'list' | 'db_creds' | 'preview' | 'success';
+type Step = 'list' | 'db_creds' | 'preview' | 'schema_match' | 'append_config' | 'success';
 
 export function DataImportPage() {
   const [activeTab, setActiveTab] = useState<'scheduled' | 'adhoc'>('scheduled');
@@ -14,6 +14,12 @@ export function DataImportPage() {
   const [targetTable, setTargetTable] = useState<string>('new_table');
   const [newTableName, setNewTableName] = useState<string>('');
   const [scheduleFreq, setScheduleFreq] = useState<string>('daily');
+
+  // Schema Detection & Append Strategy configuration
+  const [hasSchemaMatch, setHasSchemaMatch] = useState(false);
+  const [integrationMode, setIntegrationMode] = useState<'append' | 'overwrite' | 'new_version'>('append');
+  const [partitionColumn, setPartitionColumn] = useState('date');
+  const [conflictStrategy, setConflictStrategy] = useState<'replace' | 'version' | 'skip'>('replace');
 
   const handleConnectDb = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +33,24 @@ export function DataImportPage() {
     setSourceName('uploaded_data.csv');
     setNewTableName('adhoc_import_data');
     setTargetTable('new_table');
-    setStep('preview');
+    
+    // Simulate POST /datasets/check-schema
+    const isMatch = Math.random() > 0.5; // Simulate random schema match for demo
+    if (isMatch) {
+      setHasSchemaMatch(true);
+      setStep('schema_match');
+    } else {
+      setHasSchemaMatch(false);
+      setStep('preview');
+    }
+  };
+
+  const handleSchemaMatchDecision = (useExisting: boolean) => {
+    if (useExisting) {
+      setStep('append_config');
+    } else {
+      setStep('preview');
+    }
   };
 
   const handleImport = () => {
@@ -219,6 +242,119 @@ export function DataImportPage() {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* --- STEP 1.7: Schema Matching Modal/Step --- */}
+        {step === 'schema_match' && (
+          <div className="max-w-xl mx-auto mt-12 card p-8 border-warning/30 bg-warning/5 animate-in slide-in-from-right duration-500">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="size-12 rounded-full bg-warning/20 text-warning flex items-center justify-center">
+                <Database size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold tracking-tight text-warning-strong">⚠️ Matching Dataset Found</h3>
+                <p className="text-sm text-text-tertiary">This dataset has the same schema as an existing dataset ("Sales Data").</p>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-xl p-4 border border-border-subtle mb-6">
+              <p className="text-xs font-mono text-text-tertiary mb-2">Detected Alignments:</p>
+              <ul className="text-sm font-bold flex flex-col gap-2">
+                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-success" /> dataset_id: sales_v1</li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-success" /> Schema Hash matches 100%</li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-success" /> 2 active transformation workflows</li>
+              </ul>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <button onClick={() => handleSchemaMatchDecision(true)} className="btn btn-primary w-full py-3">Use Existing Transformation</button>
+              <button onClick={() => handleSchemaMatchDecision(false)} className="btn btn-secondary w-full py-3">Create New Transformation</button>
+              <button onClick={() => setStep('list')} className="text-sm text-text-tertiary hover:text-text font-bold mt-2">Cancel Import</button>
+            </div>
+          </div>
+        )}
+
+        {/* --- STEP 1.8: Append Configuration --- */}
+        {step === 'append_config' && (
+          <div className="max-w-2xl mx-auto mt-8 animate-in slide-in-from-right duration-500 bg-white card shadow-2xl overflow-hidden font-sans">
+            <div className="p-8 border-b border-border bg-surface-2/50">
+              <h3 className="text-xl font-bold tracking-tight">Data Integration Strategy</h3>
+              <p className="text-xs text-text-tertiary mt-1 uppercase font-bold tracking-widest">Choose how to integrate new data into the existing dataset.</p>
+            </div>
+            
+            <div className="p-8 space-y-8">
+              <div className="space-y-3">
+                <h4 className="text-[11px] font-black uppercase tracking-widest text-text-tertiary">Integration Mode</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {[
+                    { id: 'append', label: 'Append Data', desc: 'Recommended', icon: Plus },
+                    { id: 'overwrite', label: 'Overwrite', desc: 'Replace All', icon: Database },
+                    { id: 'new_version', label: 'New Version', desc: 'Isolate', icon: FileSpreadsheet }
+                  ].map(option => (
+                    <div 
+                      key={option.id}
+                      onClick={() => setIntegrationMode(option.id as any)}
+                      className={cn("p-4 border rounded-xl cursor-pointer transition-all", integrationMode === option.id ? "border-primary bg-primary/5 shadow-sm" : "border-border-subtle hover:border-border")}
+                    >
+                      <option.icon size={18} className={integrationMode === option.id ? "text-primary mb-2" : "text-text-tertiary mb-2"} />
+                      <div className="font-bold text-sm">{option.label}</div>
+                      <div className="text-[10px] text-text-tertiary uppercase tracking-widest font-bold mt-1">{option.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {integrationMode === 'append' && (
+                <div className="space-y-6 pt-6 border-t border-border-subtle animate-in fade-in">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Partition Column</label>
+                    <select 
+                      value={partitionColumn} 
+                      onChange={e => setPartitionColumn(e.target.value)} 
+                      className="input text-sm h-12 w-full"
+                    >
+                      <option value="date">date (Detected)</option>
+                      <option value="region">region</option>
+                      <option value="ingest_time">ingest_time</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Conflict Strategy (if partition exists)</label>
+                    <div className="space-y-2">
+                      {[
+                        { id: 'replace', label: 'Replace partition (Overwrite segment)' },
+                        { id: 'version', label: 'Keep both (Version partition)' },
+                        { id: 'skip', label: 'Skip duplicates (Ignore existing)' }
+                      ].map(opt => (
+                        <label key={opt.id} className="flex items-center gap-3 p-3 border border-border-subtle rounded-lg cursor-pointer hover:bg-surface-2">
+                          <input 
+                            type="radio" 
+                            name="conflict" 
+                            value={opt.id} 
+                            checked={conflictStrategy === opt.id} 
+                            onChange={(e) => setConflictStrategy(e.target.value as any)}
+                            className="accent-primary size-4" 
+                          />
+                          <span className="text-sm font-bold">{opt.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-border bg-surface-2/30 flex justify-end gap-3">
+              <button onClick={() => setStep('schema_match')} className="btn btn-secondary px-6">Back</button>
+              <button 
+                onClick={() => setStep('preview')} 
+                className="btn btn-primary px-8 flex items-center gap-2"
+              >
+                Continue to Preview <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         )}
 
