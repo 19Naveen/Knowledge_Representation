@@ -158,12 +158,12 @@ export function AppShell() {
                     onClick={() => { switchWorkspace(ws.id); setShowWorkspaceSwitcher(false); }}
                     className={cn(
                       "w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-3 transition-colors",
-                      ws.id === activeWorkspace.id ? "bg-primary/10 text-primary" : "hover:bg-surface-2"
+                      ws.id === activeWorkspace?.id ? "bg-primary/10 text-primary" : "hover:bg-surface-2"
                     )}
                   >
                     <div className={cn(
                       "size-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0",
-                      ws.id === activeWorkspace.id ? "bg-primary text-white" : "bg-surface-2 text"
+                      ws.id === activeWorkspace?.id ? "bg-primary text-white" : "bg-surface-2 text"
                     )}>
                       {ws.name.charAt(0)}
                     </div>
@@ -171,7 +171,7 @@ export function AppShell() {
                       <p className="text-sm font-medium truncate">{ws.name}</p>
                       <p className="text-[10px] text-text-tertiary truncate">{ws.slug}</p>
                     </div>
-                    {ws.id === activeWorkspace.id && (
+                    {ws.id === activeWorkspace?.id && (
                       <svg className="w-4 h-4 text-primary ml-auto shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                     )}
                   </button>

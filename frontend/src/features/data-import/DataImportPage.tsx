@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { PageHeader } from "../../components/shared/PageHeader";
-import { Database, FileSpreadsheet, Upload, Plus, CheckCircle2, ArrowRight, Loader2, AlertCircle, Activity, RefreshCw, ChevronRight, Trash2, X } from "lucide-react";
+import { Database, FileSpreadsheet, Upload, Plus, CheckCircle2, ArrowRight, Loader2, AlertCircle, Activity, RefreshCw, ChevronRight, Trash2 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useAuthContext } from "../../lib/context/AuthContext";
 import { useWorkspaceContext } from "../../lib/context/WorkspaceContext";
