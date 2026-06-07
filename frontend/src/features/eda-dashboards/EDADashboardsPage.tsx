@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { PageHeader } from "../../components/shared/PageHeader";
 import { datasets, workspace } from "../../lib/mocks/data";
 
@@ -76,7 +76,7 @@ function MiniBarChart({ data }: { data: { label: string; value: number }[] }) {
   );
 }
 
-function KPICard({ data, title }: { data: { label: string; value: number }[]; title: string }) {
+function KPICard({ data, title: _title }: { data: { label: string; value: number }[]; title: string }) {
   const latest = data[data.length - 1].value;
   const previous = data[data.length - 2].value;
   const percentChange = ((latest - previous) / previous) * 100;

@@ -1,515 +1,822 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { PageHeader } from "../../components/shared/PageHeader";
-import { Database, FileSpreadsheet, Activity, Clock, Upload, Plus, Table, CheckCircle2, ArrowRight, Server, Key, User } from "lucide-react";
+import { Database, FileSpreadsheet, Upload, Plus, CheckCircle2, ArrowRight, Loader2, AlertCircle, Activity, RefreshCw, ChevronRight, Trash2, X } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { useAuthContext } from "../../lib/context/AuthContext";
+import { useWorkspaceContext } from "../../lib/context/WorkspaceContext";
 
-type Step = 'list' | 'db_creds' | 'preview' | 'schema_match' | 'append_config' | 'success';
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
+
+type Step = "list" | "choose_dataset" | "db_creds" | "uploading" | "polling" | "schema_diff" | "success" | "error";
+
+interface DatasetSummary {
+  id: string;
+  name: string;
+  source_type: string;
+  version_count: number;
+  latest_row_count: number | null;
+  latest_file_size: number | null;
+  created_at: string;
+}
+
+interface JobResponse {
+  id: string;
+  dataset_id: string;
+  status: string;
+  source_type: string;
+  error_message?: string;
+}
+
+interface SchemaDiffResponse {
+  dataset_id: string;
+  has_diff: boolean;
+  added_columns: string[];
+  missing_columns: string[];
+  type_changes: { column: string; old_type: string; new_type: string }[];
+  suggested_mappings: { column: string; suggested_target: string }[];
+}
+
+interface DatasetVersion {
+  id: string;
+  version: number;
+  row_count: number;
+  column_count: number;
+  file_size: number;
+  created_at: string;
+  dataset_schema: Record<string, string>;
+}
+
+interface DbForm {
+  source_type: "postgres" | "mysql" | "snowflake" | "mssql";
+  host: string;
+  port: string;
+  database: string;
+  user: string;
+  password: string;
+  table: string;
+  dataset_name: string;
+}
+
+function formatBytes(bytes: number | null): string {
+  if (!bytes) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function DataImportPage() {
-  const [activeTab, setActiveTab] = useState<'scheduled' | 'adhoc'>('scheduled');
-  const [step, setStep] = useState<Step>('list');
+  const { session } = useAuthContext();
+  const { activeWorkspace } = useWorkspaceContext();
 
-  // Config state for preview
-  const [sourceName, setSourceName] = useState<string>('');
-  const [targetTable, setTargetTable] = useState<string>('new_table');
-  const [newTableName, setNewTableName] = useState<string>('');
-  const [scheduleFreq, setScheduleFreq] = useState<string>('daily');
+  const [activeTab, setActiveTab] = useState<"file" | "db">("file");
+  const [step, setStep] = useState<Step>("list");
+  const [datasets, setDatasets] = useState<DatasetSummary[]>([]);
+  const [datasetsLoading, setDatasetsLoading] = useState(true);
+  const [job, setJob] = useState<JobResponse | null>(null);
+  const [diff, setDiff] = useState<SchemaDiffResponse | null>(null);
+  const [error, setError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [detailDatasetId, setDetailDatasetId] = useState<string | null>(null);
+  const [detailVersions, setDetailVersions] = useState<DatasetVersion[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
 
-  // Schema Detection & Append Strategy configuration
-  const [hasSchemaMatch, setHasSchemaMatch] = useState(false);
-  const [integrationMode, setIntegrationMode] = useState<'append' | 'overwrite' | 'new_version'>('append');
-  const [partitionColumn, setPartitionColumn] = useState('date');
-  const [conflictStrategy, setConflictStrategy] = useState<'replace' | 'version' | 'skip'>('replace');
+  // For append-to-existing flow
+  const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
-  const handleConnectDb = (e: React.FormEvent) => {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref so "Add Data" dataset ID is available synchronously when onChange fires
+  const appendToDatasetRef = useRef<string | null>(null);
+
+  const [dbForm, setDbForm] = useState<DbForm>({
+    source_type: "postgres", host: "", port: "5432",
+    database: "", user: "", password: "", table: "", dataset_name: "",
+  });
+
+  const authHeaders = useCallback(() => ({
+    Authorization: `Bearer ${session?.accessToken}`,
+  }), [session]);
+
+  // ── Fetch datasets ─────────────────────────────────────────────────────────
+  const fetchDatasets = useCallback(async () => {
+    if (!activeWorkspace) return;
+    setDatasetsLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/data-ingest/datasets?workspace_id=${activeWorkspace.id}`,
+        { headers: authHeaders() }
+      );
+      if (res.ok) setDatasets(await res.json());
+    } finally {
+      setDatasetsLoading(false);
+    }
+  }, [activeWorkspace, authHeaders]);
+
+  useEffect(() => { fetchDatasets(); }, [fetchDatasets]);
+
+  // ── File picked ────────────────────────────────────────────────────────────
+  function onFilePicked(file: File) {
+    // If triggered via "Add Data" button, appendToDatasetRef is set synchronously
+    const targetDatasetId = appendToDatasetRef.current;
+    appendToDatasetRef.current = null;
+
+    if (targetDatasetId) {
+      // Direct append — skip chooser
+      uploadFile(file, targetDatasetId);
+    } else if (datasets.filter((d) => ["csv", "xlsx", "parquet"].includes(d.source_type)).length > 0) {
+      setPendingFile(file);
+      setStep("choose_dataset");
+    } else {
+      uploadFile(file, null);
+    }
+  }
+
+  // ── Upload ─────────────────────────────────────────────────────────────────
+  async function uploadFile(file: File, datasetId: string | null) {
+    setStep("uploading");
+    setError("");
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    const sourceTypeMap: Record<string, string> = { csv: "csv", xlsx: "xlsx", xls: "xlsx", parquet: "parquet" };
+    const source_type = sourceTypeMap[ext ?? ""] ?? "csv";
+
+    const resolvedDatasetId = datasetId ?? crypto.randomUUID();
+    const form = new FormData();
+    form.append("dataset_id", resolvedDatasetId);
+    form.append("dataset_name", file.name.replace(/\.[^.]+$/, ""));
+    form.append("workspace_id", activeWorkspace!.id);
+    form.append("source_type", source_type);
+    form.append("file", file);
+
+    try {
+      const res = await fetch(`${API_BASE}/data-ingest/jobs/upload`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: form,
+      });
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.detail ?? "Upload failed");
+      }
+      const data: JobResponse = await res.json();
+      setJob(data);
+      startPolling(data.id, data.dataset_id);
+    } catch (e: any) {
+      setError(e.message);
+      setStep("error");
+    }
+  }
+
+  // ── DB ingestion ───────────────────────────────────────────────────────────
+  async function submitDbJob(e: React.FormEvent) {
     e.preventDefault();
-    setSourceName('PostgreSQL - public.users');
-    setNewTableName('sync_users');
-    setTargetTable('new_table');
-    setStep('preview');
-  };
+    setStep("uploading");
+    setError("");
 
-  const handleFileUpload = () => {
-    setSourceName('uploaded_data.csv');
-    setNewTableName('adhoc_import_data');
-    setTargetTable('new_table');
-    
-    // Simulate POST /datasets/check-schema
-    const isMatch = Math.random() > 0.5; // Simulate random schema match for demo
-    if (isMatch) {
-      setHasSchemaMatch(true);
-      setStep('schema_match');
-    } else {
-      setHasSchemaMatch(false);
-      setStep('preview');
+    const datasetId = selectedDatasetId ?? crypto.randomUUID();
+    const payload = {
+      dataset_id: datasetId,
+      dataset_name: dbForm.dataset_name || `${dbForm.source_type}_${dbForm.table}`,
+      workspace_id: activeWorkspace!.id,
+      source_type: dbForm.source_type,
+      db_config: {
+        host: dbForm.host, port: parseInt(dbForm.port),
+        database: dbForm.database, user: dbForm.user,
+        password: dbForm.password, table: dbForm.table,
+      },
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/data-ingest/jobs`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.detail ?? "Failed to start ingestion");
+      }
+      const data: JobResponse = await res.json();
+      setJob(data);
+      startPolling(data.id, data.dataset_id);
+    } catch (e: any) {
+      setError(e.message);
+      setStep("error");
     }
-  };
+  }
 
-  const handleSchemaMatchDecision = (useExisting: boolean) => {
-    if (useExisting) {
-      setStep('append_config');
-    } else {
-      setStep('preview');
+  // ── Poll job status ────────────────────────────────────────────────────────
+  function startPolling(jobId: string, datasetId: string) {
+    setStep("polling");
+    if (pollRef.current) clearInterval(pollRef.current);
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/data-ingest/jobs/${jobId}`, { headers: authHeaders() });
+        if (!res.ok) return;
+        const data: JobResponse = await res.json();
+        setJob(data);
+
+        if (data.status === "SUCCESS") {
+          clearInterval(pollRef.current!);
+          setStep("success");
+          fetchDatasets(); // refresh list
+        } else if (data.status === "FAILED") {
+          clearInterval(pollRef.current!);
+          setError(data.error_message ?? "Pipeline failed");
+          setStep("error");
+        } else if (data.status === "PENDING") {
+          clearInterval(pollRef.current!);
+          const diffRes = await fetch(`${API_BASE}/data-ingest/datasets/${datasetId}/schema`, { headers: authHeaders() });
+          if (diffRes.ok) { setDiff(await diffRes.json()); setStep("schema_diff"); }
+        }
+      } catch { /* transient, keep polling */ }
+    }, 2000);
+  }
+
+  // ── Schema resolution ──────────────────────────────────────────────────────
+  async function resolveSchema(rules: { source_column: string; target_column?: string; transform_type: string; cast_to_type?: string }[]) {
+    if (!job) return;
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/data-ingest/jobs/${job.id}/resolve`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ rules }),
+      });
+      if (!res.ok) { const b = await res.json(); throw new Error(b.detail ?? "Resolution failed"); }
+      const updated: JobResponse = await res.json();
+      setJob(updated);
+      startPolling(updated.id, updated.dataset_id);
+    } catch (e: any) { setError(e.message); setStep("error"); }
+  }
+
+  function reset() {
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (fileRef.current) fileRef.current.value = "";
+    appendToDatasetRef.current = null;
+    setStep("list");
+    setJob(null);
+    setDiff(null);
+    setError("");
+    setSelectedDatasetId(null);
+    setPendingFile(null);
+  }
+
+  function addMoreData() {
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (fileRef.current) fileRef.current.value = "";
+    appendToDatasetRef.current = null;
+    setJob(null);
+    setDiff(null);
+    setError("");
+    setSelectedDatasetId(null);
+    setPendingFile(null);
+    setStep("list");
+  }
+
+  async function openDetail(datasetId: string) {
+    if (detailDatasetId === datasetId) { setDetailDatasetId(null); return; }
+    setDetailDatasetId(datasetId);
+    setDetailLoading(true);
+    setDetailVersions([]);
+    try {
+      const res = await fetch(`${API_BASE}/data-ingest/datasets/${datasetId}/versions`, { headers: authHeaders() });
+      if (res.ok) setDetailVersions(await res.json());
+    } finally {
+      setDetailLoading(false);
     }
-  };
+  }
 
-  const handleImport = () => {
-    setStep('success');
-    setTimeout(() => {
-      setStep('list');
-    }, 3000);
-  };
+  async function deleteDataset(datasetId: string) {
+    setDeletingId(datasetId);
+    setConfirmDeleteId(null);
+    try {
+      await fetch(
+        `${API_BASE}/data-ingest/datasets/${datasetId}?workspace_id=${activeWorkspace!.id}`,
+        { method: "DELETE", headers: authHeaders() }
+      );
+      setDatasets((prev) => prev.filter((d) => d.id !== datasetId));
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
-  const switchTab = (tab: 'scheduled' | 'adhoc') => {
-    setActiveTab(tab);
-    setStep('list');
-  };
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) onFilePicked(file);
+  }
 
+  const sourceTypeIcon = (type: string) =>
+    ["csv", "xlsx", "parquet"].includes(type)
+      ? <FileSpreadsheet size={16} />
+      : <Database size={16} />;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-full flex-col animate-in fade-in duration-500">
       <PageHeader
         title="Data Ingestion"
-        subtitle="Orchestrate automated database synchronization or execute rapid ad-hoc object uploads."
+        subtitle="Upload files or connect a database. All data is versioned and stored in Parquet."
+        actions={
+          step === "list" && (
+            <button
+              onClick={fetchDatasets}
+              className="btn btn-secondary text-xs flex items-center gap-2"
+            >
+              <RefreshCw size={13} /> Refresh
+            </button>
+          )
+        }
       />
 
-      <div className="flex-1 p-8 overflow-y-auto bg-surface-2/20">
-        {/* Tabs - Reverted to Original Feature/Structure */}
-        <div className="flex gap-8 border-b border-border mb-8">
-          <button
-            onClick={() => switchTab('scheduled')}
-            className={cn(
-              "pb-4 text-xs font-black uppercase tracking-widest transition-all relative",
-              activeTab === 'scheduled' ? "text-primary" : "text-text-tertiary hover:text-text"
-            )}
-          >
-            Scheduled Ingestion
-            {activeTab === 'scheduled' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
-          </button>
-          <button
-            onClick={() => switchTab('adhoc')}
-            className={cn(
-              "pb-4 text-xs font-black uppercase tracking-widest transition-all relative",
-              activeTab === 'adhoc' ? "text-primary" : "text-text-tertiary hover:text-text"
-            )}
-          >
-            Ad-Hoc Protocols
-            {activeTab === 'adhoc' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
-          </button>
-        </div>
+      <div className="flex-1 p-8 overflow-y-auto space-y-8">
 
-        {/* --- STEP 1: Main Lists --- */}
-        {step === 'list' && activeTab === 'scheduled' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-[11px] font-black uppercase tracking-widest text-text-tertiary">Active Synchronizations</h3>
-              <button
-                onClick={() => setStep('db_creds')}
-                className="btn btn-primary text-xs flex items-center gap-2">
-                <Plus size={14} /> Initialize Connection
-              </button>
-            </div>
-
-            <div className="grid gap-6">
-              <div className="card p-6 flex flex-col md:flex-row items-start gap-6 group hover:border-primary/50 transition-all">
-                <div className="size-12 rounded-2xl bg-primary/5 border border-primary/10 flex items-center justify-center text-primary flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-all">
-                  <Database size={24} />
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-bold text-lg tracking-tight">PostgreSQL - Production Entities</h4>
-                      <p className="text-xs text-text-tertiary font-mono mt-1 opacity-60">jdbc:postgresql://compute-cluster.internal:5432/main</p>
-                    </div>
-                    <div className="flex items-center gap-2 px-3 py-1 bg-success/10 text-success text-[10px] font-black rounded uppercase tracking-widest border border-success/20">
-                      <Activity size={12} className="animate-pulse" /> Live & Healthy
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mt-6 pt-6 border-t border-border-subtle">
-                    <div>
-                      <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mb-1">Interval</p>
-                      <p className="text-sm font-bold flex items-center gap-2">
-                        <Clock size={14} className="text-text-tertiary" /> Every 12H Cycle
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mb-1">Last Convergence</p>
-                      <p className="text-sm font-bold">14:32 UTC</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mb-1">Entity Count</p>
-                      <p className="text-sm font-black font-mono tracking-tighter">1,248,902</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {step === 'list' && activeTab === 'adhoc' && (
-          <div className="max-w-4xl mx-auto space-y-12">
-            <div className="card p-12 text-center border-dashed border-2 border-border-subtle hover:border-primary transition-all group bg-white shadow-2xl shadow-primary/5">
-              <div className="size-16 bg-surface-2 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-border group-hover:bg-primary group-hover:text-white transition-all">
-                <FileSpreadsheet className="text-text-tertiary group-hover:text-white" size={32} />
-              </div>
-              <h3 className="text-xl font-bold tracking-tight mb-2">Ingest Vector Sets</h3>
-              <p className="text-sm text-text-tertiary mb-8 max-w-sm mx-auto">Drop your CSV, Parquet, or Excel files into the neural buffer for immediate ingestion.</p>
-
-              <button
-                onClick={handleFileUpload}
-                className="btn btn-primary px-8 py-3 text-sm">
-                <Upload size={18} /> Select Source Files
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              <h3 className="text-[11px] font-black uppercase tracking-widest text-text-tertiary">Recent Buffers</h3>
-              <div className="card divide-y divide-border-subtle overflow-hidden">
-                {[
-                  { name: 'q3_transaction_vectors.csv', size: '14.2 MB', time: '2H ago' },
-                  { name: 'user_behavior_dump.parquet', size: '3.1 MB', time: 'Yesterday' }
-                ].map((file, i) => (
-                  <div key={i} className="flex items-center justify-between p-5 hover:bg-surface-2 transition-all group">
-                    <div className="flex items-center gap-4">
-                      <div className="size-10 rounded-xl bg-surface-2 flex items-center justify-center border border-border group-hover:bg-white transition-all">
-                        <FileSpreadsheet size={18} className="text-text-tertiary" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold tracking-tight">{file.name}</p>
-                        <p className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest mt-1">{file.size} • {file.time}</p>
-                      </div>
-                    </div>
-                    <span className="px-3 py-1 bg-success/5 text-success text-[10px] font-black rounded uppercase tracking-widest border border-success/20">Finalized</span>
-                  </div>
+        {/* ── Dataset list ─────────────────────────────────────────────────── */}
+        {step === "list" && (
+          <>
+            {/* Upload / connect section */}
+            <div>
+              <div className="flex gap-6 border-b border-border mb-6">
+                {(["file", "db"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setActiveTab(t)}
+                    className={cn(
+                      "pb-3 text-xs font-black uppercase tracking-widest transition-all relative",
+                      activeTab === t ? "text-primary" : "text-text-tertiary hover:text-text"
+                    )}
+                  >
+                    {t === "file" ? "File Upload" : "Database Connection"}
+                    {activeTab === t && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+                  </button>
                 ))}
               </div>
+
+              {activeTab === "file" && (
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={onDrop}
+                  onClick={() => fileRef.current?.click()}
+                  className={cn(
+                    "card p-10 text-center border-2 border-dashed cursor-pointer transition-all",
+                    dragOver ? "border-primary bg-primary/5" : "border-border-subtle hover:border-primary"
+                  )}
+                >
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    className="hidden"
+                    accept=".csv,.xlsx,.xls,.parquet"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) onFilePicked(f); }}
+                  />
+                  <Upload className="text-text-tertiary mx-auto mb-3" size={28} />
+                  <p className="font-bold text-sm">Drop a file or click to browse</p>
+                  <p className="text-xs text-text-secondary mt-1">CSV · Excel · Parquet</p>
+                </div>
+              )}
+
+              {activeTab === "db" && (
+                <button
+                  onClick={() => { setSelectedDatasetId(null); setStep("db_creds"); }}
+                  className="card p-6 w-full text-left flex items-center gap-5 hover:border-primary/50 transition-all group"
+                >
+                  <div className="size-11 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
+                    <Database size={20} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-sm">Connect a Database</p>
+                    <p className="text-xs text-text-secondary mt-0.5">PostgreSQL · MySQL · Snowflake · MSSQL</p>
+                  </div>
+                  <Plus size={16} className="text-text-tertiary" />
+                </button>
+              )}
             </div>
+
+            {/* Existing datasets */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xs font-black uppercase tracking-widest text-text-tertiary">
+                  Datasets in this workspace
+                </h3>
+                {!datasetsLoading && (
+                  <span className="text-xs text-text-tertiary">
+                    {datasets.filter((d) => activeTab === "file"
+                      ? ["csv", "xlsx", "parquet"].includes(d.source_type)
+                      : !["csv", "xlsx", "parquet"].includes(d.source_type)
+                    ).length} total
+                  </span>
+                )}
+              </div>
+
+              {datasetsLoading ? (
+                <div className="flex items-center gap-3 py-8 text-text-tertiary text-sm">
+                  <Loader2 size={16} className="animate-spin" /> Loading…
+                </div>
+              ) : datasets.filter((d) => activeTab === "file"
+                  ? ["csv", "xlsx", "parquet"].includes(d.source_type)
+                  : !["csv", "xlsx", "parquet"].includes(d.source_type)
+                ).length === 0 ? (
+                <div className="card p-10 text-center text-text-tertiary">
+                  {activeTab === "file"
+                    ? <><FileSpreadsheet size={28} className="mx-auto mb-3 opacity-30" /><p className="text-sm">No file uploads yet. Drop a file above to get started.</p></>
+                    : <><Database size={28} className="mx-auto mb-3 opacity-30" /><p className="text-sm">No database connections yet. Connect one above.</p></>
+                  }
+                </div>
+              ) : (
+                <div className="card divide-y divide-border-subtle overflow-hidden">
+                  {datasets.filter((d) => activeTab === "file"
+                    ? ["csv", "xlsx", "parquet"].includes(d.source_type)
+                    : !["csv", "xlsx", "parquet"].includes(d.source_type)
+                  ).map((ds) => (
+                    <div key={ds.id}>
+                    <div className="flex items-center gap-5 px-6 py-4 hover:bg-surface-2/50 transition-all group">
+                      <div className="size-9 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-text-tertiary shrink-0">
+                        {sourceTypeIcon(ds.source_type)}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm truncate">{ds.name}</p>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">{ds.source_type}</span>
+                          <span className="text-[10px] text-text-tertiary">·</span>
+                          <span className="text-[10px] text-text-tertiary">{ds.version_count} version{ds.version_count !== 1 ? "s" : ""}</span>
+                          {ds.latest_row_count != null && (
+                            <>
+                              <span className="text-[10px] text-text-tertiary">·</span>
+                              <span className="text-[10px] text-text-tertiary">{ds.latest_row_count.toLocaleString()} rows</span>
+                            </>
+                          )}
+                          {ds.latest_file_size != null && (
+                            <>
+                              <span className="text-[10px] text-text-tertiary">·</span>
+                              <span className="text-[10px] text-text-tertiary">{formatBytes(ds.latest_file_size)}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button
+                          onClick={() => {
+                            if (activeTab === "file") {
+                              appendToDatasetRef.current = ds.id; // set synchronously before click
+                              fileRef.current?.click();
+                            } else {
+                              setSelectedDatasetId(ds.id);
+                              setDbForm((f) => ({ ...f, dataset_name: ds.name }));
+                              setStep("db_creds");
+                            }
+                          }}
+                          className="btn btn-secondary text-xs flex items-center gap-1.5 py-1.5 px-3"
+                        >
+                          <Plus size={12} /> Add Data
+                        </button>
+
+                        {confirmDeleteId === ds.id ? (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => deleteDataset(ds.id)}
+                              disabled={deletingId === ds.id}
+                              className="text-xs font-bold text-danger border border-danger/30 bg-danger/5 hover:bg-danger/10 px-3 py-1.5 rounded-lg transition-colors"
+                            >
+                              {deletingId === ds.id ? <Loader2 size={12} className="animate-spin" /> : "Confirm"}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="text-xs text-text-tertiary hover:text-text font-semibold px-2 py-1.5"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDeleteId(ds.id)}
+                            className="p-1.5 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/5 transition-colors"
+                            title="Delete dataset"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => openDetail(ds.id)}
+                        className="p-1.5 rounded-lg text-text-tertiary hover:text-primary hover:bg-primary/5 transition-colors opacity-0 group-hover:opacity-100"
+                        title="View schema & versions"
+                      >
+                        <ChevronRight size={15} className={cn("transition-transform", detailDatasetId === ds.id && "rotate-90")} />
+                      </button>
+                    </div>
+
+                    {/* Detail panel */}
+                    {detailDatasetId === ds.id && (
+                      <div className="border-t border-border-subtle bg-surface-2/40 px-6 py-5 space-y-5">
+                        {detailLoading ? (
+                          <div className="flex items-center gap-2 text-text-tertiary text-sm py-2">
+                            <Loader2 size={14} className="animate-spin" /> Loading versions…
+                          </div>
+                        ) : detailVersions.length === 0 ? (
+                          <p className="text-sm text-text-tertiary py-2">No versions found.</p>
+                        ) : (
+                          <>
+                            {/* Schema from latest version */}
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-3">
+                                Schema · v{detailVersions[detailVersions.length - 1].version}
+                              </p>
+                              <div className="rounded-xl border border-border overflow-hidden">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="bg-surface-2 border-b border-border">
+                                      <th className="text-left px-4 py-2 font-bold text-text-secondary">Column</th>
+                                      <th className="text-left px-4 py-2 font-bold text-text-secondary">Type</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {Object.entries(detailVersions[detailVersions.length - 1].dataset_schema).map(([col, type]) => (
+                                      <tr key={col} className="border-b border-border-subtle last:border-0 hover:bg-surface-2/50">
+                                        <td className="px-4 py-2 font-mono text-text">{col}</td>
+                                        <td className="px-4 py-2 text-text-tertiary">{type}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+
+                            {/* Version history */}
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-3">
+                                Version History
+                              </p>
+                              <div className="space-y-2">
+                                {[...detailVersions].reverse().map((v) => (
+                                  <div key={v.id} className="flex items-center gap-4 rounded-xl border border-border-subtle bg-surface px-4 py-3 text-xs">
+                                    <span className="font-bold text-primary w-8">v{v.version}</span>
+                                    <span className="text-text-tertiary">{v.row_count.toLocaleString()} rows</span>
+                                    <span className="text-border-subtle">·</span>
+                                    <span className="text-text-tertiary">{v.column_count} cols</span>
+                                    <span className="text-border-subtle">·</span>
+                                    <span className="text-text-tertiary">{formatBytes(v.file_size)}</span>
+                                    <span className="ml-auto text-text-tertiary">{new Date(v.created_at).toLocaleDateString()}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── Choose: new dataset or append ────────────────────────────────── */}
+        {step === "choose_dataset" && pendingFile && (
+          <div className="max-w-lg mx-auto space-y-4 animate-in slide-in-from-bottom duration-300">
+            <div className="card p-5 flex items-center gap-4 bg-surface-2/50">
+              <FileSpreadsheet size={18} className="text-primary shrink-0" />
+              <div>
+                <p className="font-bold text-sm">{pendingFile.name}</p>
+                <p className="text-xs text-text-secondary">{formatBytes(pendingFile.size)}</p>
+              </div>
+            </div>
+
+            <p className="text-xs font-black uppercase tracking-widest text-text-tertiary">Add to existing dataset or create new?</p>
+
+            {/* Existing file datasets only */}
+            <div className="card divide-y divide-border-subtle overflow-hidden">
+              {datasets.filter((d) => ["csv", "xlsx", "parquet"].includes(d.source_type)).map((ds) => (
+                <button
+                  key={ds.id}
+                  onClick={() => uploadFile(pendingFile, ds.id)}
+                  className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-surface-2 transition-all text-left group"
+                >
+                  <div className="size-8 rounded-lg bg-surface-2 border border-border flex items-center justify-center text-text-tertiary shrink-0">
+                    {sourceTypeIcon(ds.source_type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm truncate">{ds.name}</p>
+                    <p className="text-[10px] text-text-tertiary">{ds.version_count} version{ds.version_count !== 1 ? "s" : ""} · {ds.latest_row_count?.toLocaleString() ?? "—"} rows</p>
+                  </div>
+                  <span className="text-xs text-primary font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                    Append <ArrowRight size={12} />
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => uploadFile(pendingFile, null)}
+              className="btn btn-primary w-full flex items-center justify-center gap-2"
+            >
+              <Plus size={15} /> Create New Dataset
+            </button>
+
+            <button onClick={reset} className="text-sm text-text-tertiary hover:text-text font-semibold w-full text-center">
+              Cancel
+            </button>
           </div>
         )}
 
-        {/* --- STEP 1.5: Database Credentials --- */}
-        {step === 'db_creds' && (
-          <div className="animate-in slide-in-from-right duration-500 max-w-2xl mx-auto bg-white border border-border rounded-3xl shadow-2xl shadow-primary/10 overflow-hidden">
-            <div className="p-8 border-b border-border bg-surface-2/50">
-              <h3 className="text-xl font-bold tracking-tight flex items-center gap-3">
-                <Database size={24} className="text-primary" /> Operational Gate
-              </h3>
-              <p className="text-xs text-text-tertiary mt-1 uppercase font-bold tracking-widest">Provide cluster credentials for secure object replication.</p>
-            </div>
-
-            <form onSubmit={handleConnectDb} className="p-8 space-y-8">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="col-span-2 space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Provider Architecture</label>
-                  <select className="input text-sm h-12">
-                    <option value="postgres">PostgreSQL / TimescaleDB</option>
-                    <option value="mysql">MySQL Cluster</option>
-                    <option value="snowflake">Snowflake Warehouse</option>
-                  </select>
+        {/* ── DB credentials ────────────────────────────────────────────────── */}
+        {step === "db_creds" && (
+          <div className="max-w-2xl mx-auto card p-8 animate-in slide-in-from-right duration-400">
+            <h3 className="text-lg font-bold tracking-tight flex items-center gap-3 mb-6">
+              <Database size={18} className="text-primary" />
+              {selectedDatasetId ? "Add Data from Database" : "New Database Connection"}
+            </h3>
+            <form onSubmit={submitDbJob} className="space-y-5">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Source Type</label>
+                <select className="input w-full" value={dbForm.source_type} onChange={(e) => setDbForm((f) => ({ ...f, source_type: e.target.value as any }))}>
+                  <option value="postgres">PostgreSQL</option>
+                  <option value="mysql">MySQL</option>
+                  <option value="snowflake">Snowflake</option>
+                  <option value="mssql">MSSQL</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Host</label>
+                  <input className="input w-full" placeholder="db.example.com" required value={dbForm.host} onChange={(e) => setDbForm((f) => ({ ...f, host: e.target.value }))} />
                 </div>
-
-                <div className="col-span-2 md:col-span-1 space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Endpoint</label>
-                  <input type="text" required placeholder="db.infra.internal" className="input text-sm h-12" />
-                </div>
-
-                <div className="col-span-2 md:col-span-1 space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Port</label>
-                  <input type="text" required defaultValue="5432" className="input text-sm h-12" />
-                </div>
-
-                <div className="col-span-2 space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Internal Schema</label>
-                  <input type="text" required placeholder="production_v1" className="input text-sm h-12" />
-                </div>
-
-                <div className="col-span-2 md:col-span-1 space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Identity</label>
-                  <input type="text" required placeholder="svc_account" className="input text-sm h-12" />
-                </div>
-
-                <div className="col-span-2 md:col-span-1 space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Key Protocol</label>
-                  <input type="password" required placeholder="••••••••" className="input text-sm h-12" />
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Port</label>
+                  <input className="input w-full" placeholder="5432" required value={dbForm.port} onChange={(e) => setDbForm((f) => ({ ...f, port: e.target.value }))} />
                 </div>
               </div>
-
-              <div className="pt-6 border-t border-border flex justify-end gap-3">
-                <button type="button" onClick={() => setStep('list')} className="btn btn-secondary px-8">Esc</button>
-                <button type="submit" className="btn btn-primary px-8 flex items-center gap-2">
-                  Verify & Connect <ArrowRight size={16} />
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Database</label>
+                <input className="input w-full" placeholder="production" required value={dbForm.database} onChange={(e) => setDbForm((f) => ({ ...f, database: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Username</label>
+                  <input className="input w-full" placeholder="readonly_user" required value={dbForm.user} onChange={(e) => setDbForm((f) => ({ ...f, user: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Password</label>
+                  <input type="password" className="input w-full" placeholder="••••••••" required value={dbForm.password} onChange={(e) => setDbForm((f) => ({ ...f, password: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Table</label>
+                <input className="input w-full" placeholder="public.users" required value={dbForm.table} onChange={(e) => setDbForm((f) => ({ ...f, table: e.target.value }))} />
+              </div>
+              {!selectedDatasetId && (
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Dataset Name (optional)</label>
+                  <input className="input w-full" placeholder="Auto-generated from table name" value={dbForm.dataset_name} onChange={(e) => setDbForm((f) => ({ ...f, dataset_name: e.target.value }))} />
+                </div>
+              )}
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={reset} className="btn btn-secondary">Cancel</button>
+                <button type="submit" className="btn btn-primary flex items-center gap-2">
+                  Start Ingestion <ArrowRight size={15} />
                 </button>
               </div>
             </form>
           </div>
         )}
 
-        {/* --- STEP 1.7: Schema Matching Modal/Step --- */}
-        {step === 'schema_match' && (
-          <div className="max-w-xl mx-auto mt-12 card p-8 border-warning/30 bg-warning/5 animate-in slide-in-from-right duration-500">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="size-12 rounded-full bg-warning/20 text-warning flex items-center justify-center">
-                <Database size={24} />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold tracking-tight text-warning-strong">⚠️ Matching Dataset Found</h3>
-                <p className="text-sm text-text-tertiary">This dataset has the same schema as an existing dataset ("Sales Data").</p>
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-xl p-4 border border-border-subtle mb-6">
-              <p className="text-xs font-mono text-text-tertiary mb-2">Detected Alignments:</p>
-              <ul className="text-sm font-bold flex flex-col gap-2">
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-success" /> dataset_id: sales_v1</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-success" /> Schema Hash matches 100%</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-success" /> 2 active transformation workflows</li>
-              </ul>
-            </div>
+        {/* ── Uploading ─────────────────────────────────────────────────────── */}
+        {step === "uploading" && (
+          <div className="max-w-sm mx-auto mt-20 text-center space-y-4">
+            <Loader2 size={36} className="animate-spin text-primary mx-auto" />
+            <p className="font-bold">Uploading &amp; queuing pipeline…</p>
+          </div>
+        )}
 
-            <div className="flex flex-col gap-3">
-              <button onClick={() => handleSchemaMatchDecision(true)} className="btn btn-primary w-full py-3">Use Existing Transformation</button>
-              <button onClick={() => handleSchemaMatchDecision(false)} className="btn btn-secondary w-full py-3">Create New Transformation</button>
-              <button onClick={() => setStep('list')} className="text-sm text-text-tertiary hover:text-text font-bold mt-2">Cancel Import</button>
+        {/* ── Polling ───────────────────────────────────────────────────────── */}
+        {step === "polling" && (
+          <div className="max-w-sm mx-auto mt-20 text-center space-y-6">
+            <div className="size-14 rounded-full border-4 border-primary/20 border-t-primary animate-spin mx-auto" />
+            <div>
+              <p className="font-bold">Pipeline running…</p>
+              <p className="text-sm text-text-secondary mt-1">Inferring schema · writing Parquet · storing version</p>
+            </div>
+            {job && (
+              <div className="card p-4 text-left space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Job ID</span>
+                  <span className="font-mono truncate max-w-[180px]">{job.id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Status</span>
+                  <span className="flex items-center gap-1.5 font-bold text-primary">
+                    <Activity size={10} className="animate-pulse" /> {job.status}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Schema diff ───────────────────────────────────────────────────── */}
+        {step === "schema_diff" && diff && (
+          <div className="max-w-2xl mx-auto animate-in slide-in-from-bottom duration-400 space-y-5">
+            <div className="card p-6 border-warning/30 bg-warning/5 space-y-4">
+              <div className="flex items-start gap-4">
+                <AlertCircle size={20} className="text-warning shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-bold">Schema changed since last version</h3>
+                  <p className="text-sm text-text-secondary mt-1">Resolve the mapping before the pipeline continues.</p>
+                </div>
+              </div>
+              {diff.added_columns.length > 0 && (
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-success mb-2">New columns</p>
+                  <div className="flex flex-wrap gap-2">
+                    {diff.added_columns.map((c) => <span key={c} className="px-2 py-1 rounded bg-success/10 text-success text-xs font-mono border border-success/20">{c}</span>)}
+                  </div>
+                </div>
+              )}
+              {diff.missing_columns.length > 0 && (
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-danger mb-2">Missing columns</p>
+                  <div className="flex flex-wrap gap-2">
+                    {diff.missing_columns.map((c) => <span key={c} className="px-2 py-1 rounded bg-danger/10 text-danger text-xs font-mono border border-danger/20">{c}</span>)}
+                  </div>
+                </div>
+              )}
+              {diff.type_changes.length > 0 && (
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-warning mb-2">Type changes</p>
+                  {diff.type_changes.map((c) => (
+                    <p key={c.column} className="text-xs font-mono"><span className="font-bold">{c.column}</span> <span className="text-text-tertiary">{c.old_type} → {c.new_type}</span></p>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="card p-6 space-y-3">
+              {diff.suggested_mappings.length > 0 && (
+                <button
+                  onClick={() => resolveSchema(diff.suggested_mappings.map((s) => ({ source_column: s.suggested_target, target_column: s.column, transform_type: "map" })))}
+                  className="btn btn-primary w-full flex items-center justify-center gap-2"
+                >
+                  Apply Suggested Mappings <ArrowRight size={14} />
+                </button>
+              )}
+              <button
+                onClick={() => resolveSchema(diff.missing_columns.map((c) => ({ source_column: c, transform_type: "drop" })))}
+                className="btn btn-secondary w-full"
+              >
+                Drop Missing Columns &amp; Continue
+              </button>
+              <button onClick={reset} className="text-sm text-text-tertiary hover:text-text font-semibold w-full text-center">Cancel</button>
             </div>
           </div>
         )}
 
-        {/* --- STEP 1.8: Append Configuration --- */}
-        {step === 'append_config' && (
-          <div className="max-w-2xl mx-auto mt-8 animate-in slide-in-from-right duration-500 bg-white card shadow-2xl overflow-hidden font-sans">
-            <div className="p-8 border-b border-border bg-surface-2/50">
-              <h3 className="text-xl font-bold tracking-tight">Data Integration Strategy</h3>
-              <p className="text-xs text-text-tertiary mt-1 uppercase font-bold tracking-widest">Choose how to integrate new data into the existing dataset.</p>
+        {/* ── Success ───────────────────────────────────────────────────────── */}
+        {step === "success" && job && (
+          <div className="max-w-md mx-auto mt-16 card p-10 text-center animate-in zoom-in duration-500 shadow-2xl shadow-primary/10 space-y-6">
+            <div className="size-16 bg-success/10 text-success rounded-full flex items-center justify-center mx-auto border border-success/20">
+              <CheckCircle2 size={32} />
             </div>
-            
-            <div className="p-8 space-y-8">
-              <div className="space-y-3">
-                <h4 className="text-[11px] font-black uppercase tracking-widest text-text-tertiary">Integration Mode</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {[
-                    { id: 'append', label: 'Append Data', desc: 'Recommended', icon: Plus },
-                    { id: 'overwrite', label: 'Overwrite', desc: 'Replace All', icon: Database },
-                    { id: 'new_version', label: 'New Version', desc: 'Isolate', icon: FileSpreadsheet }
-                  ].map(option => (
-                    <div 
-                      key={option.id}
-                      onClick={() => setIntegrationMode(option.id as any)}
-                      className={cn("p-4 border rounded-xl cursor-pointer transition-all", integrationMode === option.id ? "border-primary bg-primary/5 shadow-sm" : "border-border-subtle hover:border-border")}
-                    >
-                      <option.icon size={18} className={integrationMode === option.id ? "text-primary mb-2" : "text-text-tertiary mb-2"} />
-                      <div className="font-bold text-sm">{option.label}</div>
-                      <div className="text-[10px] text-text-tertiary uppercase tracking-widest font-bold mt-1">{option.desc}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {integrationMode === 'append' && (
-                <div className="space-y-6 pt-6 border-t border-border-subtle animate-in fade-in">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Partition Column</label>
-                    <select 
-                      value={partitionColumn} 
-                      onChange={e => setPartitionColumn(e.target.value)} 
-                      className="input text-sm h-12 w-full"
-                    >
-                      <option value="date">date (Detected)</option>
-                      <option value="region">region</option>
-                      <option value="ingest_time">ingest_time</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Conflict Strategy (if partition exists)</label>
-                    <div className="space-y-2">
-                      {[
-                        { id: 'replace', label: 'Replace partition (Overwrite segment)' },
-                        { id: 'version', label: 'Keep both (Version partition)' },
-                        { id: 'skip', label: 'Skip duplicates (Ignore existing)' }
-                      ].map(opt => (
-                        <label key={opt.id} className="flex items-center gap-3 p-3 border border-border-subtle rounded-lg cursor-pointer hover:bg-surface-2">
-                          <input 
-                            type="radio" 
-                            name="conflict" 
-                            value={opt.id} 
-                            checked={conflictStrategy === opt.id} 
-                            onChange={(e) => setConflictStrategy(e.target.value as any)}
-                            className="accent-primary size-4" 
-                          />
-                          <span className="text-sm font-bold">{opt.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
+            <div>
+              <h3 className="text-xl font-black tracking-tight">Ingestion Complete</h3>
+              <p className="text-sm text-text-secondary mt-2 leading-relaxed">
+                Data versioned and stored successfully.
+              </p>
             </div>
-
-            <div className="p-6 border-t border-border bg-surface-2/30 flex justify-end gap-3">
-              <button onClick={() => setStep('schema_match')} className="btn btn-secondary px-6">Back</button>
-              <button 
-                onClick={() => setStep('preview')} 
-                className="btn btn-primary px-8 flex items-center gap-2"
-              >
-                Continue to Preview <ArrowRight size={16} />
+            <div className="p-3 rounded-xl bg-surface-2 text-xs font-mono text-left space-y-1.5">
+              <div className="flex justify-between"><span className="text-text-secondary">Job</span><span>{job.id.slice(0, 16)}…</span></div>
+              <div className="flex justify-between"><span className="text-text-secondary">Dataset</span><span>{job.dataset_id.slice(0, 16)}…</span></div>
+              <div className="flex justify-between"><span className="text-text-secondary">Status</span><span className="text-success font-bold">SUCCESS</span></div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={addMoreData} className="btn btn-secondary flex-1 flex items-center justify-center gap-2">
+                <Plus size={14} /> Add More Data
+              </button>
+              <button onClick={reset} className="btn btn-primary flex-1">
+                Done
               </button>
             </div>
           </div>
         )}
 
-        {/* --- STEP 2: Configure & Preview --- */}
-        {step === 'preview' && (
-          <div className="animate-in slide-in-from-right duration-500 max-w-6xl mx-auto space-y-8">
-
-            <div className="card overflow-hidden">
-              <div className="p-8 border-b border-border bg-white flex justify-between items-center">
-                <div>
-                  <div className="flex items-center gap-3 text-primary font-black tracking-tighter text-2xl uppercase">
-                    {activeTab === 'scheduled' ? <Database size={24} /> : <FileSpreadsheet size={24} />}
-                    {sourceName}
-                  </div>
-                  <p className="text-xs text-text-tertiary font-bold tracking-widest uppercase mt-1">Staging Layer Configuration</p>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => activeTab === 'scheduled' ? setStep('db_creds') : setStep('list')}
-                    className="btn btn-secondary px-6">
-                    Revise
-                  </button>
-                  <button
-                    onClick={handleImport}
-                    className="btn btn-primary px-8 flex items-center gap-2 shadow-xl shadow-primary/10">
-                    {activeTab === 'scheduled' ? 'Establish Sync' : 'Finalize Import'} <ArrowRight size={16} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-8 grid grid-cols-2 gap-16">
-                <div className="space-y-6">
-                  <h4 className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-b border-border-subtle pb-3">Destination Geometry</h4>
-                  <div className="flex gap-8">
-                    <label className="flex items-center gap-3 text-xs font-bold cursor-pointer group">
-                      <input
-                        type="radio"
-                        name="target"
-                        value="new_table"
-                        checked={targetTable === 'new_table'}
-                        onChange={(e) => setTargetTable(e.target.value)}
-                        className="accent-primary size-4"
-                      />
-                      Generate New Target
-                    </label>
-                    <label className="flex items-center gap-3 text-xs font-bold cursor-pointer group">
-                      <input
-                        type="radio"
-                        name="target"
-                        value="existing"
-                        checked={targetTable === 'existing'}
-                        onChange={(e) => setTargetTable(e.target.value)}
-                        className="accent-primary size-4"
-                      />
-                      Append to Cluster
-                    </label>
-                  </div>
-
-                  {targetTable === 'new_table' ? (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Object Identifier</label>
-                      <input
-                        type="text"
-                        value={newTableName}
-                        onChange={(e) => setNewTableName(e.target.value)}
-                        className="input text-sm h-12"
-                        placeholder="namespace.table_name"
-                      />
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Target Entity</label>
-                      <select className="input text-sm h-12">
-                        <option>production.main_vectors</option>
-                        <option>historical.archive_set</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
-
-                {activeTab === 'scheduled' && (
-                  <div className="space-y-6">
-                    <h4 className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-b border-border-subtle pb-3">Temporal Sync Protocol</h4>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Cadence</label>
-                        <select
-                          value={scheduleFreq}
-                          onChange={e => setScheduleFreq(e.target.value)}
-                          className="input text-sm h-12">
-                          <option value="hourly">Real-time (Hourly)</option>
-                          <option value="daily">Nightly Batch (00:00)</option>
-                          <option value="weekly">Weekly Audit (Sun)</option>
-                        </select>
-                      </div>
-
-                      <label className="flex items-center gap-3 text-xs font-bold cursor-pointer mt-4">
-                        <input type="checkbox" defaultChecked className="accent-primary size-4 rounded" />
-                        Execute initial convergence immediate
-                      </label>
-                    </div>
-                  </div>
-                )}
-              </div>
+        {/* ── Error ─────────────────────────────────────────────────────────── */}
+        {step === "error" && (
+          <div className="max-w-md mx-auto mt-16 card p-10 text-center space-y-4">
+            <div className="size-14 bg-danger/10 text-danger rounded-full flex items-center justify-center mx-auto border border-danger/20">
+              <AlertCircle size={26} />
             </div>
-
-            {/* Data Preview Panel */}
-            <div className="card overflow-hidden">
-              <div className="px-8 py-5 border-b border-border flex items-center justify-between bg-surface-2/30">
-                <h4 className="text-[11px] font-black flex items-center gap-3 uppercase tracking-widest text-text-tertiary">
-                  <Table size={16} /> Data Pre-Visualization
-                </h4>
-                <span className="text-[9px] font-bold text-primary bg-primary/5 px-3 py-1 rounded-full uppercase tracking-widest border border-primary/20">Head Buffer (5 Rows)</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-border bg-white">
-                      {['ID', 'ENTITY_NAME', 'METADATA_LOC', 'DOMAIN', 'QUANT_VAL'].map(h => (
-                        <th key={h} className="px-6 py-4 font-black text-text-tertiary tracking-widest uppercase border-r border-border-subtle last:border-0">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="font-mono divide-y divide-border-subtle">
-                    {[1, 2, 3, 4, 5].map(i => (
-                      <tr key={i} className="hover:bg-surface-2 transition-all group">
-                        <td className="px-6 py-3 border-r border-border-subtle group-last:border-r">{i}</td>
-                        <td className="px-6 py-3 border-r border-border-subtle font-bold text-text truncate">Entity_Alpha_{i * 92}</td>
-                        <td className="px-6 py-3 border-r border-border-subtle opacity-50 truncate">meta.internal/node_{i}</td>
-                        <td className="px-6 py-3 border-r border-border-subtle font-bold">{i % 2 === 0 ? 'Engineering' : 'Global Ops'}</td>
-                        <td className="px-6 py-3 font-black text-primary">{(Math.random() * 100000).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* --- STEP 3: Success --- */}
-        {step === 'success' && (
-          <div className="max-w-xl mx-auto mt-24 card p-12 text-center animate-in zoom-in duration-500 shadow-2xl shadow-primary/20 bg-white">
-            <div className="size-20 bg-success/10 text-success rounded-full flex items-center justify-center mx-auto mb-8 border border-success/20 animate-bounce">
-              <CheckCircle2 size={40} />
-            </div>
-            <h3 className="text-3xl font-black tracking-tighter mb-4">
-              {activeTab === 'scheduled' ? 'Convergence Verified' : 'Buffer Finalized'}
-            </h3>
-            <p className="text-sm text-text-tertiary max-w-sm mx-auto leading-relaxed">
-              Object stream successfully mapped to <strong className="text-primary">{targetTable === 'new_table' ? newTableName : 'existing cluster'}</strong>. Pipeline initialized.
-            </p>
-            <div className="mt-12">
-              <button onClick={() => setStep('list')} className="btn btn-primary px-12 py-3 text-xs">Return to Workspace</button>
-            </div>
+            <h3 className="text-xl font-bold">Ingestion Failed</h3>
+            <p className="text-sm text-text-secondary bg-surface-2 rounded-xl p-3 font-mono">{error}</p>
+            <button onClick={reset} className="btn btn-secondary mt-2">Try Again</button>
           </div>
         )}
 

@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { PageHeader } from "../../components/shared/PageHeader";
 import { datasets, workspace } from "../../lib/mocks/data";
 
-import { Server, Activity, ArrowRight, Play, CheckCircle2, Copy, Eye, Clock, GitBranch } from "lucide-react";
+import { Server, ArrowRight, Play, CheckCircle2, Copy, Eye, Clock, GitBranch } from "lucide-react";
 
 const rawData = [
   { id: 1, region: 'South', dept: 'Engineering', salary: 72000 },
@@ -429,7 +429,7 @@ export function DataTransformPage() {
                       <input type="radio" name="save_strat" defaultChecked className="accent-primary size-4" />
                       <div>
                         <span className="text-sm font-bold block">Save as New Version (Default)</span>
-                        <span className="text-[10px] text-text-tertiary">Safe: creates {activeVersion.replace(/v(\d+)/, (m,p1)=>`v${parseInt(p1)+1}`)} and leaves {activeVersion} intact.</span>
+                        <span className="text-[10px] text-text-tertiary">Safe: creates {activeVersion.replace(/v(\d+)/, (_m,p1)=>`v${parseInt(p1)+1}`)} and leaves {activeVersion} intact.</span>
                       </div>
                     </label>
                     <label className="flex items-center gap-3 p-3 border border-border-subtle rounded-lg cursor-pointer hover:bg-white opacity-70">

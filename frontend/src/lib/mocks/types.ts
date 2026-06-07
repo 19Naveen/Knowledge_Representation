@@ -54,11 +54,24 @@ export type ActionAdvice = {
   nextStep: string;
 };
 
+export type WorkspaceMember = {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string;
+  role: "admin" | "editor" | "viewer";
+  status: "active" | "pending";
+  joinedAt: string;
+};
+
 export type WorkspaceContext = {
   id: string;
   name: string;
+  slug: string;
+  description?: string;
   owner: string;
   activeDatasetId: string;
-  members: number;
+  members: WorkspaceMember[];
   role: "admin" | "editor" | "viewer";
+  createdAt: string;
 };

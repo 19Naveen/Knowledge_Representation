@@ -165,11 +165,50 @@ export const actionAdvices: ActionAdvice[] = [
   }
 ];
 
-export const workspace: WorkspaceContext = {
-  id: "ws-marketing",
-  name: "Marketing",
-  owner: "Naveen",
-  activeDatasetId: "ds-churn-2024",
-  members: 3,
-  role: "admin"
-};
+export const workspaces: WorkspaceContext[] = [
+  {
+    id: "11111111-1111-1111-1111-111111111111",
+    name: "Marketing Analytics",
+    slug: "marketing",
+    description: "Churn analysis, campaign performance, and customer segmentation.",
+    owner: "Naveen",
+    activeDatasetId: "ds-churn-2024",
+    role: "admin",
+    createdAt: "2024-01-10",
+    members: [
+      { id: "u-1", name: "Naveen", email: "naveen@company.com", avatar: "N", role: "admin", status: "active", joinedAt: "2024-01-10" },
+      { id: "u-2", name: "Asha", email: "asha@company.com", avatar: "A", role: "editor", status: "active", joinedAt: "2024-01-15" },
+      { id: "u-3", name: "Ravi", email: "ravi@company.com", avatar: "R", role: "viewer", status: "pending", joinedAt: "2024-02-01" },
+      { id: "u-4", name: "Priya", email: "priya@company.com", avatar: "P", role: "editor", status: "active", joinedAt: "2024-02-10" },
+    ],
+  },
+  {
+    id: "22222222-2222-2222-2222-222222222222",
+    name: "Revenue Ops",
+    slug: "revenue-ops",
+    description: "Q3 sales pipeline, forecasting, and deal analytics.",
+    owner: "Naveen",
+    activeDatasetId: "ds-sales-q3",
+    role: "admin",
+    createdAt: "2024-02-01",
+    members: [
+      { id: "u-1", name: "Naveen", email: "naveen@company.com", avatar: "N", role: "admin", status: "active", joinedAt: "2024-02-01" },
+      { id: "u-4", name: "Priya", email: "priya@company.com", avatar: "P", role: "editor", status: "active", joinedAt: "2024-02-10" },
+    ],
+  },
+  {
+    id: "33333333-3333-3333-3333-333333333333",
+    name: "Research Lab",
+    slug: "research-lab",
+    description: "Experimental models and prototype data pipelines.",
+    owner: "Naveen",
+    activeDatasetId: "",
+    role: "admin",
+    createdAt: "2024-03-05",
+    members: [
+      { id: "u-1", name: "Naveen", email: "naveen@company.com", avatar: "N", role: "admin", status: "active", joinedAt: "2024-03-05" },
+    ],
+  },
+];
+
+export const workspace: WorkspaceContext = workspaces[0];

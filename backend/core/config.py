@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     TOKEN_AUDIENCE: str = "knowledge-representation-frontend"
     DATABASE_URL: str = Field(..., env="DATABASE_URL")
     LOG_LEVEL: str = "info" 
+    MINIO_ENDPOINT: str = Field(..., env="MINIO_ENDPOINT")
+    MINIO_ACCESS_KEY: str = Field(..., env="MINIO_ACCESS_KEY")
+    MINIO_SECRET_KEY: str = Field(..., env="MINIO_SECRET_KEY")
+    RABBITMQ_URL: str = Field(..., env="RABBITMQ_URL")
 
     class Config:
         env_file = ".env"

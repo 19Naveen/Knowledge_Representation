@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from core.security import decode_access_token
+from core.dependencies import get_current_user
 from modules.auth.service import login_user, register_user
 from modules.auth.repository import get_user_by_email
 from modules.auth.schemas import (
@@ -15,7 +14,6 @@ from modules.auth.schemas import (
 from modules.auth.schemas import UserPublic
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-_bearer_scheme = HTTPBearer(auto_error=True)
 
 
 @router.post("/signup", response_model=TokenResponse, status_code=201)
@@ -35,11 +33,10 @@ async def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenRe
 
 @router.get("/me", response_model=UserPublic)
 async def me(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
 ) -> UserPublic:
-    token_payload = decode_access_token(credentials.credentials)
-    email = str(token_payload.get("email", ""))
+    email = str(user.get("email", ""))
 
     user = get_user_by_email(db, email)
     if not user:

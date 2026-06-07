@@ -1,331 +1,164 @@
-# 🧠 Knowledge Representation Platform (Revised Architecture)
+# Knowledge Representation Platform
 
-An **AI-powered lakehouse data platform** that enables users to ingest, transform, query, and model data at scale—without managing infrastructure or risking data integrity.
+An AI-powered lakehouse data platform that enables users to ingest, transform, query, and model data at scale — without managing infrastructure or risking data integrity.
+
+> Detailed documentation: [Backend](./backend/README.md) | [Frontend](./frontend/README.md)
 
 ---
 
-# 🚀 Core Philosophy
+## Table of Contents
+
+1. [Core Philosophy](#core-philosophy)
+2. [System Architecture](#system-architecture)
+3. [Tech Stack](#tech-stack)
+4. [Infrastructure Services](#infrastructure-services)
+5. [Getting Started](#getting-started)
+6. [Design Rules](#design-rules)
+7. [Changelog](#changelog)
+
+---
+
+## Core Philosophy
 
 > **Separate Storage, Compute, and Control Planes**
 
-This platform is built on three strict principles:
-
-1. **Object Storage is the source of truth (Parquet)**
-2. **Compute is stateless (DuckDB / Spark)**
-3. **Relational DB stores only metadata, not datasets**
+1. **Object Storage is the source of truth** — all datasets stored as Parquet in MinIO
+2. **Compute is stateless** — DuckDB / Spark / Pandas with no side effects
+3. **PostgreSQL stores only metadata** — never actual dataset rows
 
 ---
 
-# 🏗️ System Architecture
+## System Architecture
 
-```text
+```
                     ┌────────────────────┐
                     │     Frontend       │
-                    │ Dashboards / UI    │
+                    │  React + Vite      │
                     └─────────┬──────────┘
-                              ↓
-                    ┌────────────────────┐
+                              │ HTTP / REST
+                    ┌─────────▼──────────┐
                     │      FastAPI       │
-                    │  Control Plane     │
-                    └─────────┬──────────┘
-                              ↓
-        ┌──────────────┬──────────────┬──────────────┐
-        ↓              ↓              ↓
-
-Object Storage     Metadata DB       Compute Layer
-(Parquet Files)    (PostgreSQL)      (DuckDB/Spark)
+                    │   Control Plane    │
+                    │   /api/v1/*        │
+                    └──────┬──────┬──────┘
+                           │      │
+              ┌────────────▼─┐  ┌─▼────────────┐
+              │  PostgreSQL  │  │   RabbitMQ   │
+              │  (Metadata)  │  │  (Job Queue) │
+              └──────────────┘  └──────┬───────┘
+                                       │
+                              ┌────────▼────────┐
+                              │  Celery Workers │
+                              │ (Async Pipeline)│
+                              └────────┬────────┘
+                                       │
+                              ┌────────▼────────┐
+                              │     MinIO       │
+                              │ (Parquet Store) │
+                              └─────────────────┘
 ```
 
 ---
 
-# 🛠️ Core Modules
+## Tech Stack
 
-## 1. Data Ingestion (`Data Import`)
-
-### Supported Sources
-
-* CSV / Excel uploads
-* Parquet files
-* Database connections (PostgreSQL, Snowflake, etc.)
-
-### Behavior
-
-* All data is ingested as **read-only**
-* Immediately stored in **object storage (Parquet format)**
-
-### Storage Structure
-
-```text
-/user_id/dataset_name/
-    raw/
-    processed/
-    features/
-```
-
-### Large Database Handling
-
-* Read Replica (preferred)
-* CDC pipelines (Airbyte/Debezium)
-* No direct querying on production DB
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Vite, TypeScript, TailwindCSS, react-router-dom |
+| Backend API | FastAPI (Python 3.14), Uvicorn |
+| Task Queue | Celery 5 + RabbitMQ |
+| Metadata DB | PostgreSQL 16 (SQLAlchemy 2.0, Alembic) |
+| Object Storage | MinIO (S3-compatible) |
+| Columnar Compute | DuckDB, PyArrow, Pandas |
+| ML | scikit-learn, XGBoost |
+| Auth | JWT (python-jose + bcrypt) |
+| Package Managers | uv (backend), npm (frontend) |
 
 ---
 
-## 2. Storage Layer (Lakehouse)
+## Infrastructure Services
 
-### Format
+All services run via Docker Compose (`backend/docker-compose.yml`).
 
-* **Parquet (columnar, compressed, partitioned)**
-
-### Zones
-
-```text
-raw/        → immutable source data
-processed/  → cleaned datasets (versioned)
-features/   → ML-ready datasets
-```
-
-### Key Properties
-
-* Immutable raw layer
-* Versioned transformations
-* Partitioned for performance
+| Service | Port(s) | Purpose |
+|---|---|---|
+| PostgreSQL 16 | 5432 | Metadata storage |
+| MinIO | 9000 (API), 9001 (Console) | Parquet file storage |
+| RabbitMQ 3.13 | 5672 (AMQP), 15672 (Management) | Celery task broker |
 
 ---
 
-## 3. Compute Layer (`Data Transform`)
-
-### Engines (based on scale)
-
-| Data Size | Engine |
-| --------- | ------ |
-| <1GB      | Pandas |
-| 1–10GB    | DuckDB |
-| 10GB+     | Spark  |
-
-### Execution Pattern
-
-```text
-Read (Parquet) → Transform → Write (Parquet)
-```
-
-### Guarantees
-
-* No mutation of raw data
-* All transformations produce new versions
-
----
-
-## 4. Query Layer (`Query Studio`)
-
-### Capabilities
-
-* SQL-based querying on Parquet
-* Natural Language → SQL generation
-* Schema-aware execution
-
-### Execution Engine
-
-* DuckDB (default)
-* Trino (future scaling)
-
-### Example Flow
-
-```text
-User Query → SQL → DuckDB → Parquet → Result → JSON → UI
-```
-
----
-
-## 5. Dashboard & Serving Layer
-
-### Strategy
-
-#### Direct Query Mode
-
-* Query Parquet using DuckDB
-* Suitable for ad-hoc analytics
-
-#### Optimized Mode
-
-* Pre-aggregate datasets
-* Store in OLAP DB (optional)
-
-```text
-Raw (50GB) → Aggregate → 50MB → Fast dashboards
-```
-
-### Caching
-
-* Redis for query caching
-* Avoid repeated scans
-
----
-
-## 6. Machine Learning Layer
-
-### Components
-
-* AutoML pipeline
-* Manual training (XGBoost, sklearn)
-* Feature dataset generation
-
-### Data Source
-
-* Processed Parquet datasets
-* NOT in-memory CSVs
-
-### Execution Modes
-
-* Small → local training
-* Large → Spark ML
-
----
-
-## 7. Strategy Simulator (`Deploy Sim`)
-
-* Scenario testing using model outputs
-* No direct dependency on raw datasets
-* Uses processed/aggregated data
-
----
-
-# 🧾 Metadata & Control Plane
-
-## Stored in PostgreSQL
-
-### Entities
-
-```text
-datasets
-- id
-- user_id
-- blob_path
-- schema
-- version
-
-transformations
-- dataset_id
-- steps
-- version
-
-jobs
-- status
-- logs
-- execution_time
-
-dashboards
-- config
-- queries
-```
-
----
-
-# 🔁 Data Flow (End-to-End)
-
-```text
-1. Ingest → Blob (raw)
-2. Convert → Parquet
-3. Transform → processed/
-4. Query → DuckDB
-5. Aggregate → optional OLAP
-6. Visualize → Dashboard
-7. Train → ML models
-```
-
----
-
-# ⚠️ Critical Design Rules
-
-## MUST FOLLOW
-
-* Raw data is **never stored in a database**
-* All datasets are stored as **Parquet in object storage**
-* DB connections are **read-only**
-* Transformations are **immutable + versioned**
-
----
-
-## NEVER DO
-
-* Load 50GB datasets into PostgreSQL
-* Query user production DB directly
-* Overwrite raw datasets
-* Depend on Pandas for large data
-
----
-
-# 📊 Decision Matrix
-
-| Scenario       | Approach       |
-| -------------- | -------------- |
-| Small CSV      | Pandas + Blob  |
-| Medium dataset | DuckDB         |
-| Large dataset  | Spark          |
-| DB connection  | CDC / Replica  |
-| Dashboard      | DuckDB + Cache |
-| Fast BI        | OLAP DB        |
-
----
-
-# 🎯 Platform Identity
-
-> **A self-serve AI-powered lakehouse platform that transforms raw data into queryable, versioned datasets and enables analytics, ML, and simulation at scale.**
-
----
-
-# 🔥 What This Enables
-
-* No data duplication
-* Infinite scalability (object storage)
-* Safe data handling (read-only ingestion)
-* High-performance querying (columnar execution)
-* Unified analytics + ML workflow
-
----
-
-# ⚙️ Getting Started
+## Getting Started
 
 ### Prerequisites
-- Python 3.9+ | Node.js 18+ | Google Gemini API Key
 
-### Installation
+- Python 3.14+, Node.js 18+, Docker + Docker Compose, `uv`
 
-1.  **System Setup**
-    ```bash
-    git clone https://github.com/19Naveen/Knowledge_Representation.git
-    ```
+### Run everything
 
-2.  **Backend Initialization**
-    ```bash
-    cd backend && python -m venv venv && source venv/bin/activate
-    pip install -r requirements.txt
-    ```
+```bash
+make run
+```
 
-3.  **Frontend Launch**
-    ```bash
-    cd frontend && npm install && npm run dev
-    ```
+Starts Docker services, FastAPI backend, and React frontend. Ctrl+C stops all.
 
----
+### Individual commands
 
-# 🚧 Future Enhancements
+```bash
+make docker-up      # Start Docker services only
+make backend        # Start backend (also starts Docker)
+make frontend       # Start frontend dev server
+make docker-down    # Stop Docker services
+```
 
-* Dataset versioning (Git-like)
-* Data lineage tracking
-* Cost-based query optimization
-* Multi-tenant query isolation
-* Distributed query engine (Trino)
+### Celery worker (separate terminal)
 
----
+```bash
+cd backend
+celery -A celery_app worker --loglevel=info
+```
 
-# 🧠 Final Note
-
-> This platform is not a database.
->
-> It is a **data processing and intelligence system built on a lakehouse architecture**.
+For full setup details see [backend/README.md](./backend/README.md) and [frontend/README.md](./frontend/README.md).
 
 ---
 
-## 🤝 About the Team
-Developed with ❤️ by **Bit Bandits**.
+## Design Rules
 
+### Must follow
+
+- Raw data is **never stored in a database**
+- All datasets stored as **Parquet in MinIO**
+- DB connections are **read-only**
+- Transformations are **immutable + versioned**
+- PostgreSQL holds **metadata only**
+
+### Never do
+
+- Load large datasets into PostgreSQL
+- Query user production DB directly
+- Overwrite raw Parquet files
+- Use Pandas for datasets > 1 GB
+
+---
+
+## Changelog
+
+### 2026-06-06 — Three-file README split
+
+- Root README reduced to platform overview and getting started
+- `backend/README.md` created with full backend module, API, and pipeline detail
+- `frontend/README.md` created with full frontend structure, routing, and state management detail
+
+### 2026-06-06 — Data Ingestion Pipeline Architecture
+
+- Defined full 11-step ingestion pipeline with Celery async execution
+- Schema inference, diff detection, mapping rule persistence, and versioned MinIO storage
+
+### 2026-06-06 — Backend Bootstrap
+
+- FastAPI + JWT auth, PostgreSQL via SQLAlchemy 2.0, MinIO + RabbitMQ services
+- Switched to `uv` + `pyproject.toml`, Makefile for unified dev workflow
+
+---
+
+Developed by **Bit Bandits**.

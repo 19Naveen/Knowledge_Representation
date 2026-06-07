@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { datasets as initialDatasets, workspace as initialWorkspace } from '../mocks/data';
-import { Dataset, WorkspaceContext } from '../mocks/types';
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { datasets as initialDatasets } from '../mocks/data';
+import { Dataset } from '../mocks/types';
 
 interface Widget {
     id: string;
@@ -29,22 +29,18 @@ interface AppContextType {
     dashboards: Dashboard[];
     addDashboard: (db: Dashboard) => void;
     updateDashboard: (db: Dashboard) => void;
-
-    workspace: WorkspaceContext;
-    setWorkspace: (ws: WorkspaceContext) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
     const [datasets, setDatasets] = useState<Dataset[]>(initialDatasets);
-    const [activeDatasetId, setActiveDatasetId] = useState<string>(initialWorkspace.activeDatasetId);
-    const [workspace, setWorkspace] = useState<WorkspaceContext>(initialWorkspace);
+    const [activeDatasetId, setActiveDatasetId] = useState<string>("");
     const [dashboards, setDashboards] = useState<Dashboard[]>([
         {
             id: 'db-1',
             name: 'Default Dashboard',
-            datasetId: initialWorkspace.activeDatasetId,
+            datasetId: "",
             widgets: [
                 { id: "w1", type: "kpi", title: "Total Users", xAxis: "date", yAxis: "users", aggregation: "sum", data: [] },
                 { id: "w2", type: "line", title: "Revenue Trend", xAxis: "date", yAxis: "revenue", aggregation: "sum", data: [] },
@@ -76,8 +72,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
             dashboards,
             addDashboard,
             updateDashboard,
-            workspace,
-            setWorkspace
         }}>
             {children}
         </AppContext.Provider>

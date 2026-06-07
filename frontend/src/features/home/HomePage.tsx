@@ -13,8 +13,8 @@ export function HomePage() {
         subtitle="Centralized command for your data pipelines and predictive model lifecycle."
         actions={
           <div className="flex gap-3">
-            <Link to="/data-import" className="btn btn-secondary text-xs px-4">Ingest Data</Link>
-            <Link to="/automl-lab" className="btn btn-primary text-xs px-4 shadow-xl shadow-primary/10">Launch Neural Search</Link>
+            <Link to="/app/data-import" className="btn btn-secondary text-xs px-4">Ingest Data</Link>
+            <Link to="/app/automl-lab" className="btn btn-primary text-xs px-4 shadow-xl shadow-primary/10">Launch Neural Search</Link>
           </div>
         }
       />
@@ -55,7 +55,7 @@ export function HomePage() {
                 <h3 className="text-xl font-bold tracking-tight">Analytical Data Fabric</h3>
                 <p className="text-sm text-text-tertiary">Real-time monitoring of imported and transformed entities.</p>
               </div>
-              <Link to="/data-import" className="text-xs font-bold text-primary hover:underline uppercase tracking-widest">Expansion Protocol</Link>
+              <Link to="/app/data-import" className="text-xs font-bold text-primary hover:underline uppercase tracking-widest">Expansion Protocol</Link>
             </div>
             <div className="space-y-3">
               {datasets.slice(0, 4).map(ds => (
@@ -73,7 +73,7 @@ export function HomePage() {
                     <div className="h-1 w-16 bg-surface-2 rounded-full overflow-hidden">
                       <div className="h-full bg-success" style={{ width: `${ds.qualityScore}%` }} />
                     </div>
-                    <Link to="/query-studio" className="p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Link to="/app/query-studio" className="p-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <svg className="w-4 h-4 text-text-tertiary hover:text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7-7 7" /></svg>
                     </Link>
                   </div>
@@ -112,7 +112,7 @@ export function HomePage() {
 
             <div className="pt-4 space-y-4">
               <button className="w-full py-3 rounded-xl bg-white text-primary font-bold text-sm shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all">Optimize Architecture</button>
-              <Link to="/ml-prediction" className="block text-center text-xs font-bold text-white/60 hover:text-white transition-colors uppercase tracking-widest">Inference Sandbox</Link>
+              <Link to="/app/ml-prediction" className="block text-center text-xs font-bold text-white/60 hover:text-white transition-colors uppercase tracking-widest">Inference Sandbox</Link>
             </div>
           </div>
 
@@ -121,9 +121,9 @@ export function HomePage() {
         {/* Section 3: Rapid Access Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pb-12">
           {[
-            { title: "Query Studio", desc: "Natural language datasets interrogation.", url: "/query-studio", icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" },
-            { title: "Pipeline Manager", desc: "Automate complex data transformations.", url: "/data-transform", icon: "M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.675.337a4 4 0 01-2.574.345l-2.313-.463c-.574-.115-1.155.032-1.536.413l-1.119 1.119a2 2 0 01-2.828 0l-3.536-3.536a2 2 0 010-2.828l1.119-1.119a2 2 0 00.413-1.536L4.057 6.42a4 4 0 01.345-2.574l.338-.675a6 6 0 00.517-3.861L4.78 1.056a2 2 0 00-.547-1.022L2.73 2.73a2 2 0 000 2.828l3.536 3.536a2 2 0 002.828 0L9.11 9.11a2 2 0 011.536-.413l2.313.463a4 4 0 002.574-.345l.675-.338a6 6 0 013.861-.517l2.387.477a2 2 0 011.022.547l1.503 1.503z" },
-            { title: "Metric Lab", desc: "Visual dashboarding for KPI monitoring.", url: "/eda-dashboards", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" }
+            { title: "Query Studio", desc: "Natural language datasets interrogation.", url: "/app/query-studio", icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" },
+            { title: "Pipeline Manager", desc: "Automate complex data transformations.", url: "/app/data-transform", icon: "M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.675.337a4 4 0 01-2.574.345l-2.313-.463c-.574-.115-1.155.032-1.536.413l-1.119 1.119a2 2 0 01-2.828 0l-3.536-3.536a2 2 0 010-2.828l1.119-1.119a2 2 0 00.413-1.536L4.057 6.42a4 4 0 01.345-2.574l.338-.675a6 6 0 00.517-3.861L4.78 1.056a2 2 0 00-.547-1.022L2.73 2.73a2 2 0 000 2.828l3.536 3.536a2 2 0 002.828 0L9.11 9.11a2 2 0 011.536-.413l2.313.463a4 4 0 002.574-.345l.675-.338a6 6 0 013.861-.517l2.387.477a2 2 0 011.022.547l1.503 1.503z" },
+            { title: "Metric Lab", desc: "Visual dashboarding for KPI monitoring.", url: "/app/eda-dashboards", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" }
           ].map(item => (
             <Link key={item.title} to={item.url} className="card p-6 flex items-start gap-4 hover:border-primary/50 hover:shadow-2xl hover:shadow-primary/5 transition-all group">
               <div className="p-3 rounded-2xl bg-surface-2 text-text-tertiary group-hover:bg-primary group-hover:text-white transition-all">

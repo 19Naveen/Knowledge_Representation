@@ -1,28 +1,27 @@
 import { useState } from "react";
-import { 
-  Settings, 
-  Users, 
-  CreditCard, 
-  Plug, 
-  Shield, 
-  Bell, 
-  Key, 
-  Globe, 
-  Database, 
+import {
+  Settings,
+  CreditCard,
+  Plug,
+  Shield,
+  Bell,
+  Key,
+  Globe,
+  Database,
   Building2,
   ChevronRight,
   Check,
   AlertCircle,
   Copy,
   ExternalLink,
-  Activity,
   Layers,
-  Zap
+  Zap,
 } from "lucide-react";
-import { datasets, workspace } from "../../lib/mocks/data";
+import { useAppContext } from "../../lib/context/AppContext";
+import { useWorkspaceContext } from "../../lib/context/WorkspaceContext";
 import { cn } from "../../lib/cn";
 
-type TabId = "general" | "team" | "billing" | "integrations" | "security" | "notifications" | "api";
+type TabId = "general" | "billing" | "integrations" | "security" | "notifications" | "api";
 
 interface Tab {
   id: TabId;
@@ -32,7 +31,6 @@ interface Tab {
 
 const tabs: Tab[] = [
   { id: "general", label: "General", icon: <Settings className="w-4 h-4" /> },
-  { id: "team", label: "Team", icon: <Users className="w-4 h-4" /> },
   { id: "billing", label: "Billing", icon: <CreditCard className="w-4 h-4" /> },
   { id: "integrations", label: "Integrations", icon: <Plug className="w-4 h-4" /> },
   { id: "security", label: "Security", icon: <Shield className="w-4 h-4" /> },
@@ -40,43 +38,26 @@ const tabs: Tab[] = [
   { id: "api", label: "API Keys", icon: <Key className="w-4 h-4" /> },
 ];
 
-const teamMembers = [
-  { id: "1", name: "Naveen", email: "naveen@company.com", role: "Admin", status: "active", avatar: "N" },
-  { id: "2", name: "Asha", email: "asha@company.com", role: "Editor", status: "active", avatar: "A" },
-  { id: "3", name: "Ravi", email: "ravi@company.com", role: "Viewer", status: "pending", avatar: "R" },
-  { id: "4", name: "Priya", email: "priya@company.com", role: "Editor", status: "active", avatar: "P" },
-];
-
 const integrations = [
-  { id: "slack", name: "Slack", description: "Send alerts and notifications to Slack channels", icon: "S", connected: true, status: "active" },
-  { id: "snowflake", name: "Snowflake", description: "Connect to Snowflake data warehouses", icon: "❄", connected: true, status: "active" },
-  { id: "dbt", name: "dbt Cloud", description: "Sync transformations and run jobs", icon: "d", connected: false, status: "disconnected" },
-  { id: "airflow", name: "Apache Airflow", description: "Orchestrate ML pipelines", icon: "A", connected: false, status: "disconnected" },
-  { id: "datadog", name: "Datadog", description: "Monitor model performance and drift", icon: "D", connected: true, status: "active" },
+  { id: "slack", name: "Slack", description: "Send alerts and notifications to Slack channels", icon: "S", connected: true },
+  { id: "snowflake", name: "Snowflake", description: "Connect to Snowflake data warehouses", icon: "❄", connected: true },
+  { id: "dbt", name: "dbt Cloud", description: "Sync transformations and run jobs", icon: "d", connected: false },
+  { id: "airflow", name: "Apache Airflow", description: "Orchestrate ML pipelines", icon: "A", connected: false },
+  { id: "datadog", name: "Datadog", description: "Monitor model performance and drift", icon: "D", connected: true },
 ];
 
 const apiKeys = [
-  { id: "key-1", name: "Production API Key", prefix: "kr_live_", created: "2024-01-15", lastUsed: "2 hours ago", scopes: ["read", "write"] },
-  { id: "key-2", name: "Development Key", prefix: "kr_test_", created: "2024-02-20", lastUsed: "5 days ago", scopes: ["read"] },
+  { id: "key-1", name: "Production API Key", prefix: "kr_live_", lastUsed: "2 hours ago", scopes: ["read", "write"] },
+  { id: "key-2", name: "Development Key", prefix: "kr_test_", lastUsed: "5 days ago", scopes: ["read"] },
 ];
 
-function TabButton({ 
-  tab, 
-  active, 
-  onClick 
-}: { 
-  tab: Tab; 
-  active: boolean; 
-  onClick: () => void;
-}) {
+function TabButton({ tab, active, onClick }: { tab: Tab; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       className={cn(
         "btn flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200",
-        active 
-          ? "btn-primary" 
-          : "btn-ghost text"
+        active ? "btn-primary" : "btn-ghost text"
       )}
     >
       {tab.icon}
@@ -85,15 +66,15 @@ function TabButton({
   );
 }
 
-function SectionCard({ 
-  title, 
-  description, 
-  children, 
+function SectionCard({
+  title,
+  description,
+  children,
   action,
-  className 
-}: { 
-  title: string; 
-  description?: string; 
+  className,
+}: {
+  title: string;
+  description?: string;
   children: React.ReactNode;
   action?: React.ReactNode;
   className?: string;
@@ -103,26 +84,22 @@ function SectionCard({
       <div className="border-b border-border-subtle px-6 py-4 flex items-center justify-between surface-2">
         <div>
           <h3 className="text-base font-semibold text">{title}</h3>
-          {description && (
-            <p className="mt-0.5 text-xs text-secondary">{description}</p>
-          )}
+          {description && <p className="mt-0.5 text-xs text-secondary">{description}</p>}
         </div>
         {action && <div>{action}</div>}
       </div>
-      <div className="p-6">
-        {children}
-      </div>
+      <div className="p-6">{children}</div>
     </div>
   );
 }
 
-function Toggle({ 
-  checked, 
-  onChange, 
+function Toggle({
+  checked,
+  onChange,
   label,
-  description 
-}: { 
-  checked: boolean; 
+  description,
+}: {
+  checked: boolean;
   onChange: (checked: boolean) => void;
   label: string;
   description?: string;
@@ -156,6 +133,9 @@ function Toggle({
 }
 
 function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
+  const { datasets } = useAppContext();
+  const { activeWorkspace } = useWorkspaceContext();
+
   const [toggles, setToggles] = useState({
     safeSql: true,
     auditLog: true,
@@ -166,22 +146,30 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
     modelAlerts: true,
     dataQuality: true,
   });
+  const [workspaceName, setWorkspaceName] = useState(activeWorkspace?.name ?? "");
+  const [workspaceSlug, setWorkspaceSlug] = useState(activeWorkspace?.slug ?? "");
+  const [saved, setSaved] = useState(false);
+
+  if (!activeWorkspace) return null;
+
+  const handleSaveGeneral = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   if (activeTab === "general") {
     return (
       <div className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-2">
-          <SectionCard 
-            title="Workspace Identity" 
-            description="Basic workspace configuration"
-          >
+          <SectionCard title="Workspace Identity" description="Basic workspace configuration">
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-2">Workspace Name</label>
                 <div className="relative">
                   <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary" />
-                  <input 
-                    defaultValue={workspace.name}
+                  <input
+                    value={workspaceName}
+                    onChange={(e) => setWorkspaceName(e.target.value)}
                     className="input w-full pl-10 pr-4 py-2.5"
                   />
                 </div>
@@ -190,29 +178,28 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
                 <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-2">Workspace Slug</label>
                 <div className="relative">
                   <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary" />
-                  <input 
-                    defaultValue="marketing"
+                  <input
+                    value={workspaceSlug}
+                    onChange={(e) => setWorkspaceSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
                     className="input w-full pl-10 pr-4 py-2.5"
                   />
                 </div>
-                <p className="text-xs text-tertiary mt-1.5">This will be used in your workspace URL</p>
+                <p className="text-xs text-tertiary mt-1.5">Used in your workspace URL</p>
               </div>
+              <button onClick={handleSaveGeneral} className="btn btn-primary w-full">
+                {saved ? <><Check className="w-4 h-4" /> Saved</> : "Save Changes"}
+              </button>
             </div>
           </SectionCard>
 
-          <SectionCard 
-            title="Data Configuration" 
-            description="Default dataset and pipeline settings"
-          >
+          <SectionCard title="Data Configuration" description="Default dataset and pipeline settings">
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-2">Active Dataset</label>
                 <div className="relative">
                   <Database className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary" />
-                  <select 
-                    defaultValue={workspace.activeDatasetId}
-                    className="input w-full pl-10 pr-4 py-2.5 appearance-none"
-                  >
+                  <select className="input w-full pl-10 pr-4 py-2.5 appearance-none">
+                    <option value="">— None —</option>
                     {datasets.map((item) => (
                       <option key={item.id} value={item.id}>{item.name}</option>
                     ))}
@@ -235,160 +222,23 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
           </SectionCard>
         </div>
 
-        <SectionCard 
-          title="Workspace Statistics" 
-          description="Current usage and limits"
-        >
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 rounded-lg bg-surface-2 border border-border">
-              <div className="flex items-center gap-2 text-secondary mb-2">
-                <Users className="w-4 h-4" />
-                <span className="text-xs font-medium uppercase tracking-wider">Team Size</span>
+        <SectionCard title="Workspace Statistics" description="Current usage and limits">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {[
+              { icon: <Database className="w-4 h-4" />, label: "Datasets", value: datasets.length },
+              { icon: <Layers className="w-4 h-4" />, label: "Pipelines", value: 12 },
+              { icon: <Key className="w-4 h-4" />, label: "API Calls", value: "8.2K" },
+            ].map((stat) => (
+              <div key={stat.label} className="p-4 rounded-lg bg-surface-2 border border-border">
+                <div className="flex items-center gap-2 text-secondary mb-2">
+                  {stat.icon}
+                  <span className="text-xs font-medium uppercase tracking-wider">{stat.label}</span>
+                </div>
+                <p className="text-2xl font-bold text">{stat.value}</p>
               </div>
-              <p className="text-2xl font-bold text">{workspace.members}</p>
-            </div>
-            <div className="p-4 rounded-lg bg-surface-2 border border-border">
-              <div className="flex items-center gap-2 text-secondary mb-2">
-                <Database className="w-4 h-4" />
-                <span className="text-xs font-medium uppercase tracking-wider">Datasets</span>
-              </div>
-              <p className="text-2xl font-bold text">{datasets.length}</p>
-            </div>
-            <div className="p-4 rounded-lg bg-surface-2 border border-border">
-              <div className="flex items-center gap-2 text-secondary mb-2">
-                <Layers className="w-4 h-4" />
-                <span className="text-xs font-medium uppercase tracking-wider">Pipelines</span>
-              </div>
-              <p className="text-2xl font-bold text">12</p>
-            </div>
-            <div className="p-4 rounded-lg bg-surface-2 border border-border">
-              <div className="flex items-center gap-2 text-secondary mb-2">
-                <Activity className="w-4 h-4" />
-                <span className="text-xs font-medium uppercase tracking-wider">API Calls</span>
-              </div>
-              <p className="text-2xl font-bold text">8.2K</p>
-            </div>
+            ))}
           </div>
         </SectionCard>
-      </div>
-    );
-  }
-
-  if (activeTab === "team") {
-    return (
-      <div className="space-y-6">
-        <SectionCard 
-          title="Team Members" 
-          description="Manage workspace access and roles"
-          action={
-            <button className="btn btn-primary">
-              <Users className="w-4 h-4" />
-              Invite Member
-            </button>
-          }
-        >
-          <div className="overflow-hidden rounded-lg border border-border">
-            <table className="w-full">
-              <thead className="surface-2">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-secondary">Member</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-secondary">Role</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-secondary">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-secondary">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {teamMembers.map((member) => (
-                  <tr key={member.id} className="hover:bg-surface-2/30 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="size-8 rounded-full bg-accent/10 text-accent flex items-center justify-center text-sm font-semibold">
-                          {member.avatar}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text">{member.name}</p>
-                          <p className="text-xs text-secondary">{member.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn(
-                        "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
-                        member.role === "Admin" ? "bg-accent/10 text-accent" : "bg-surface-2 text-secondary"
-                      )}>
-                        {member.role}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className={cn(
-                          "size-2 rounded-full",
-                          member.status === "active" ? "bg-success" : "bg-warning"
-                        )} />
-                        <span className={cn(
-                          "text-sm capitalize",
-                          member.status === "active" ? "text-success" : "text-warning"
-                        )}>
-                          {member.status}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {member.role !== "Admin" && (
-                        <button className="text-sm text-secondary hover:text transition-colors">
-                          Edit
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </SectionCard>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <SectionCard title="Role Permissions" description="Available roles and capabilities">
-            <div className="space-y-3">
-              {["Admin", "Editor", "Viewer"].map((role) => (
-                <div key={role} className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-accent/30 transition-colors cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "size-8 rounded-lg flex items-center justify-center text-sm font-semibold",
-                      role === "Admin" ? "bg-accent/10 text-accent" : role === "Editor" ? "bg-surface-2 text" : "bg-surface-2 text-secondary"
-                    )}>
-                      {role[0]}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text">{role}</p>
-                      <p className="text-xs text-secondary">
-                        {role === "Admin" ? "Full access to all settings" : role === "Editor" ? "Can edit datasets and run queries" : "View-only access"}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-secondary" />
-                </div>
-              ))}
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Pending Invitations" description="Awaiting response">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-warning/5 border border-warning/20">
-                <div className="flex items-center gap-3">
-                  <div className="size-8 rounded-full bg-warning/10 text-warning flex items-center justify-center text-sm font-semibold">
-                    R
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text">ravi@company.com</p>
-                    <p className="text-xs text-warning">Invited 3 days ago</p>
-                  </div>
-                </div>
-                <button className="text-xs font-medium text-accent hover:underline">Resend</button>
-              </div>
-            </div>
-          </SectionCard>
-        </div>
       </div>
     );
   }
@@ -405,34 +255,28 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
                     <span className="text-lg font-bold text">Pro Plan</span>
                     <span className="px-2 py-0.5 text-xs font-medium bg-accent text-white rounded-full">Active</span>
                   </div>
-                  <p className="text-sm text-secondary">$49/month • Billed monthly</p>
+                  <p className="text-sm text-secondary">$49/month · Billed monthly</p>
                 </div>
-                <button className="btn btn-secondary">
-                  Upgrade
-                </button>
+                <button className="btn btn-secondary">Upgrade</button>
               </div>
               <div className="mt-6 grid grid-cols-3 gap-4">
-                <div className="text-center p-3 rounded-lg border border-border">
-                  <p className="text-2xl font-bold text">5</p>
-                  <p className="text-xs text-secondary">Team Seats</p>
-                </div>
-                <div className="text-center p-3 rounded-lg border border-border">
-                  <p className="text-2xl font-bold text">50GB</p>
-                  <p className="text-xs text-secondary">Storage</p>
-                </div>
-                <div className="text-center p-3 rounded-lg border border-border">
-                  <p className="text-2xl font-bold text">10K</p>
-                  <p className="text-xs text-secondary">API Calls/mo</p>
-                </div>
+                {[
+                  { label: "Team Seats", value: "5" },
+                  { label: "Storage", value: "50GB" },
+                  { label: "API Calls/mo", value: "10K" },
+                ].map((item) => (
+                  <div key={item.label} className="text-center p-3 rounded-lg border border-border">
+                    <p className="text-2xl font-bold text">{item.value}</p>
+                    <p className="text-xs text-secondary">{item.label}</p>
+                  </div>
+                ))}
               </div>
             </SectionCard>
 
             <SectionCard title="Payment Method" description="Manage your payment options">
               <div className="flex items-center justify-between p-4 rounded-lg border border-border">
                 <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-lg bg-surface-2 flex items-center justify-center text-lg font-bold text">
-                    💳
-                  </div>
+                  <div className="size-10 rounded-lg bg-surface-2 flex items-center justify-center text-lg font-bold text">💳</div>
                   <div>
                     <p className="text-sm font-medium text">Visa ending in 4242</p>
                     <p className="text-xs text-secondary">Expires 12/2026</p>
@@ -446,48 +290,36 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
           <div className="space-y-6">
             <SectionCard title="Usage This Month">
               <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-secondary">API Calls</span>
-                    <span className="text font-medium">8,234 / 10,000</span>
+                {[
+                  { label: "API Calls", used: 8234, total: 10000, pct: 82 },
+                  { label: "Storage", used: "32GB", total: "50GB", pct: 64 },
+                  { label: "Datasets", used: datasets.length, total: 50, pct: Math.min((datasets.length / 50) * 100, 100) },
+                ].map((item) => (
+                  <div key={item.label}>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-secondary">{item.label}</span>
+                      <span className="text font-medium">{item.used} / {item.total}</span>
+                    </div>
+                    <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
+                      <div className="h-full bg-accent rounded-full" style={{ width: `${item.pct}%` }} />
+                    </div>
                   </div>
-                  <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
-                    <div className="h-full bg-accent rounded-full" style={{ width: "82%" }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-secondary">Storage</span>
-                    <span className="text font-medium">32GB / 50GB</span>
-                  </div>
-                  <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
-                    <div className="h-full bg-accent rounded-full" style={{ width: "64%" }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-secondary">Team Members</span>
-                    <span className="text font-medium">4 / 5</span>
-                  </div>
-                  <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
-                    <div className="h-full bg-success rounded-full" style={{ width: "80%" }} />
-                  </div>
-                </div>
+                ))}
               </div>
             </SectionCard>
 
             <SectionCard title="Invoice History">
               <div className="space-y-2">
                 {[
-                  { date: "Mar 2024", amount: "$49.00", status: "paid" },
-                  { date: "Feb 2024", amount: "$49.00", status: "paid" },
-                  { date: "Jan 2024", amount: "$49.00", status: "paid" },
+                  { date: "Mar 2024", amount: "$49.00" },
+                  { date: "Feb 2024", amount: "$49.00" },
+                  { date: "Jan 2024", amount: "$49.00" },
                 ].map((inv, i) => (
                   <div key={i} className="flex items-center justify-between p-2 rounded hover:bg-surface-2/30 transition-colors cursor-pointer">
                     <span className="text-sm text">{inv.date}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text">{inv.amount}</span>
-                      <span className="text-xs text-success">{inv.status}</span>
+                      <span className="text-xs text-success">paid</span>
                     </div>
                   </div>
                 ))}
@@ -502,17 +334,12 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
   if (activeTab === "integrations") {
     return (
       <div className="space-y-6">
-        <SectionCard 
-          title="Connected Integrations" 
-          description="Active connections and their status"
-        >
+        <SectionCard title="Connected Integrations" description="Active connections and their status">
           <div className="grid gap-3">
-            {integrations.filter(i => i.connected).map((integration) => (
+            {integrations.filter((i) => i.connected).map((integration) => (
               <div key={integration.id} className="flex items-center justify-between p-4 rounded-lg border border-success/20 bg-success/5">
                 <div className="flex items-center gap-4">
-                  <div className="size-10 rounded-lg bg-surface-2 flex items-center justify-center text-lg font-bold">
-                    {integration.icon}
-                  </div>
+                  <div className="size-10 rounded-lg bg-surface-2 flex items-center justify-center text-lg font-bold">{integration.icon}</div>
                   <div>
                     <p className="text-sm font-medium text">{integration.name}</p>
                     <p className="text-xs text-secondary">{integration.description}</p>
@@ -530,25 +357,18 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
           </div>
         </SectionCard>
 
-        <SectionCard 
-          title="Available Integrations" 
-          description="Connect more services to enhance your workspace"
-        >
+        <SectionCard title="Available Integrations" description="Connect more services to enhance your workspace">
           <div className="grid gap-3 md:grid-cols-2">
-            {integrations.filter(i => !i.connected).map((integration) => (
+            {integrations.filter((i) => !i.connected).map((integration) => (
               <div key={integration.id} className="flex items-center justify-between p-4 rounded-lg border border-border hover:border-accent/30 transition-colors">
                 <div className="flex items-center gap-4">
-                  <div className="size-10 rounded-lg bg-surface-2 flex items-center justify-center text-lg font-bold text-secondary">
-                    {integration.icon}
-                  </div>
+                  <div className="size-10 rounded-lg bg-surface-2 flex items-center justify-center text-lg font-bold text-secondary">{integration.icon}</div>
                   <div>
                     <p className="text-sm font-medium text">{integration.name}</p>
                     <p className="text-xs text-secondary">{integration.description}</p>
                   </div>
                 </div>
-                <button className="btn btn-secondary text-xs">
-                  Connect
-                </button>
+                <button className="btn btn-secondary text-xs">Connect</button>
               </div>
             ))}
           </div>
@@ -562,7 +382,6 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
               <button className="mt-3 text-xs text-accent hover:underline">Add webhook</button>
             </div>
           </SectionCard>
-
           <SectionCard title="SSO Configuration" description="Single sign-on settings">
             <div className="text-center py-8 text-secondary">
               <Shield className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -581,65 +400,30 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
         <div className="grid gap-6 lg:grid-cols-2">
           <SectionCard title="Feature Toggles" description="Control workspace behavior">
             <div className="space-y-4">
-              <Toggle 
-                label="Safe SQL Execution" 
-                description="Enable parameterized queries and query validation"
-                checked={toggles.safeSql}
-                onChange={(checked) => setToggles({...toggles, safeSql: checked})}
-              />
-              <Toggle 
-                label="Query Audit Logging" 
-                description="Log all queries for compliance and debugging"
-                checked={toggles.auditLog}
-                onChange={(checked) => setToggles({...toggles, auditLog: checked})}
-              />
-              <Toggle 
-                label="Allow Production Deployments" 
-                description="Enable deployment to production environment"
-                checked={toggles.prodDeploy}
-                onChange={(checked) => setToggles({...toggles, prodDeploy: checked})}
-              />
+              <Toggle label="Safe SQL Execution" description="Enable parameterized queries and query validation" checked={toggles.safeSql} onChange={(c) => setToggles({ ...toggles, safeSql: c })} />
+              <Toggle label="Query Audit Logging" description="Log all queries for compliance and debugging" checked={toggles.auditLog} onChange={(c) => setToggles({ ...toggles, auditLog: c })} />
+              <Toggle label="Allow Production Deployments" description="Enable deployment to production environment" checked={toggles.prodDeploy} onChange={(c) => setToggles({ ...toggles, prodDeploy: c })} />
             </div>
           </SectionCard>
 
           <SectionCard title="Access Control" description="Security and authentication settings">
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-accent/30 transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="size-8 rounded-lg bg-surface-2 flex items-center justify-center">
-                    <Shield className="w-4 h-4 text-secondary" />
+              {[
+                { icon: <Shield className="w-4 h-4" />, label: "Two-Factor Authentication", desc: "Require 2FA for all members", value: "Enabled", color: "text-success" },
+                { icon: <Key className="w-4 h-4" />, label: "Session Timeout", desc: "Auto-logout after inactivity", value: "30 minutes", color: "text" },
+                { icon: <Globe className="w-4 h-4" />, label: "IP Allowlist", desc: "Restrict access to specific IPs", value: "Not configured", color: "text-secondary" },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-accent/30 transition-colors cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <div className="size-8 rounded-lg bg-surface-2 flex items-center justify-center">{item.icon}</div>
+                    <div>
+                      <p className="text-sm font-medium text">{item.label}</p>
+                      <p className="text-xs text-secondary">{item.desc}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text">Two-Factor Authentication</p>
-                    <p className="text-xs text-secondary">Require 2FA for all members</p>
-                  </div>
+                  <span className={cn("text-xs font-medium", item.color)}>{item.value}</span>
                 </div>
-                <span className="text-xs text-success font-medium">Enabled</span>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-accent/30 transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="size-8 rounded-lg bg-surface-2 flex items-center justify-center">
-                    <Key className="w-4 h-4 text-secondary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text">Session Timeout</p>
-                    <p className="text-xs text-secondary">Auto-logout after inactivity</p>
-                  </div>
-                </div>
-                <span className="text-xs text font-medium">30 minutes</span>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-accent/30 transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="size-8 rounded-lg bg-surface-2 flex items-center justify-center">
-                    <Globe className="w-4 h-4 text-secondary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text">IP Allowlist</p>
-                    <p className="text-xs text-secondary">Restrict access to specific IPs</p>
-                  </div>
-                </div>
-                <span className="text-xs text-secondary font-medium">Not configured</span>
-              </div>
+              ))}
             </div>
           </SectionCard>
         </div>
@@ -649,7 +433,6 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
             {[
               { event: "Login from new device", time: "2 hours ago", status: "success" },
               { event: "API key created", time: "1 day ago", status: "info" },
-              { event: "Member invited", time: "3 days ago", status: "info" },
               { event: "Settings modified", time: "1 week ago", status: "warning" },
             ].map((log, i) => (
               <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
@@ -671,41 +454,16 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
       <div className="space-y-6">
         <SectionCard title="Notification Channels" description="Where you receive alerts">
           <div className="space-y-4">
-            <Toggle 
-              label="Email Notifications" 
-              description="Receive important updates via email"
-              checked={toggles.emailNotifs}
-              onChange={(checked) => setToggles({...toggles, emailNotifs: checked})}
-            />
-            <Toggle 
-              label="Slack Alerts" 
-              description="Send alerts to connected Slack workspace"
-              checked={toggles.slackAlerts}
-              onChange={(checked) => setToggles({...toggles, slackAlerts: checked})}
-            />
+            <Toggle label="Email Notifications" description="Receive important updates via email" checked={toggles.emailNotifs} onChange={(c) => setToggles({ ...toggles, emailNotifs: c })} />
+            <Toggle label="Slack Alerts" description="Send alerts to connected Slack workspace" checked={toggles.slackAlerts} onChange={(c) => setToggles({ ...toggles, slackAlerts: c })} />
           </div>
         </SectionCard>
 
         <SectionCard title="Notification Preferences" description="Choose what to be notified about">
           <div className="space-y-4">
-            <Toggle 
-              label="Weekly Digest" 
-              description="Summary of workspace activity every Monday"
-              checked={toggles.weeklyDigest}
-              onChange={(checked) => setToggles({...toggles, weeklyDigest: checked})}
-            />
-            <Toggle 
-              label="Model Alerts" 
-              description="Notify when models complete or fail"
-              checked={toggles.modelAlerts}
-              onChange={(checked) => setToggles({...toggles, modelAlerts: checked})}
-            />
-            <Toggle 
-              label="Data Quality Issues" 
-              description="Alert when dataset quality drops below threshold"
-              checked={toggles.dataQuality}
-              onChange={(checked) => setToggles({...toggles, dataQuality: checked})}
-            />
+            <Toggle label="Weekly Digest" description="Summary of workspace activity every Monday" checked={toggles.weeklyDigest} onChange={(c) => setToggles({ ...toggles, weeklyDigest: c })} />
+            <Toggle label="Model Alerts" description="Notify when models complete or fail" checked={toggles.modelAlerts} onChange={(c) => setToggles({ ...toggles, modelAlerts: c })} />
+            <Toggle label="Data Quality Issues" description="Alert when dataset quality drops below threshold" checked={toggles.dataQuality} onChange={(c) => setToggles({ ...toggles, dataQuality: c })} />
           </div>
         </SectionCard>
       </div>
@@ -715,8 +473,8 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
   if (activeTab === "api") {
     return (
       <div className="space-y-6">
-        <SectionCard 
-          title="API Keys" 
+        <SectionCard
+          title="API Keys"
           description="Manage API keys for programmatic access"
           action={
             <button className="btn btn-primary">
@@ -746,9 +504,7 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
                   <p className="text-xs text-secondary">Last used {key.lastUsed}</p>
                   <div className="flex items-center gap-2 mt-2">
                     {key.scopes.map((scope) => (
-                      <span key={scope} className="px-2 py-0.5 text-xs bg-surface-2 text-secondary rounded">
-                        {scope}
-                      </span>
+                      <span key={scope} className="px-2 py-0.5 text-xs bg-surface-2 text-secondary rounded">{scope}</span>
                     ))}
                   </div>
                 </div>
@@ -780,28 +536,30 @@ function ActiveTabContent({ activeTab }: { activeTab: TabId }) {
 
 export function WorkspaceSettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("general");
+  const { activeWorkspace } = useWorkspaceContext();
+
+  if (!activeWorkspace) return null;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text">Workspace Settings</h1>
-          <p className="text-sm text-secondary mt-1">Manage your workspace configuration, team, and integrations</p>
+          <h1 className="text-2xl font-bold text">{activeWorkspace.name}</h1>
+          <p className="text-sm text-secondary mt-1">
+            {activeWorkspace.description ?? "Manage workspace configuration and integrations."}
+          </p>
         </div>
-        <button className="btn btn-primary">
-          <Check className="w-4 h-4" />
-          Save Changes
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold px-3 py-1.5 rounded-full border bg-accent/10 text-accent border-accent/20">
+            Owner
+          </span>
+          <span className="text-xs text-secondary font-mono">{activeWorkspace.slug}</span>
+        </div>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
         {tabs.map((tab) => (
-          <TabButton 
-            key={tab.id} 
-            tab={tab} 
-            active={activeTab === tab.id} 
-            onClick={() => setActiveTab(tab.id)} 
-          />
+          <TabButton key={tab.id} tab={tab} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} />
         ))}
       </div>
 
