@@ -3,10 +3,12 @@ from typing import Literal
 
 from core.database import get_db
 from core.dependencies import get_current_user
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from modules.ingestion import repository as repo
 from modules.ingestion.enums import JobStatus, SourceType
-from modules.ingestion.schema_diff import compute_diff
+from modules.ingestion.schema_diff import SchemaDiff, compute_diff
+from modules.ingestion.schema_inference import infer_schema
+from modules.ingestion.source_loader import load_source
 from modules.ingestion.schemas import (
     ColumnDiff,
     CreateIngestionJobRequest,
@@ -15,6 +17,7 @@ from modules.ingestion.schemas import (
     IngestionJobResponse,
     ResolveSchemaMappingRequest,
     SchemaDiffResponse,
+    StagedPreviewResponse,
 )
 from modules.ingestion.service import create_ingestion_job, resolve_schema_mapping
 from modules.ingestion.storage.minio_client import upload_staging_file
@@ -22,6 +25,23 @@ from modules.ingestion.tasks import run_ingestion_pipeline
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/data-ingest", tags=["data-ingest"])
+
+
+def _diff_to_response(dataset_id, diff: SchemaDiff) -> SchemaDiffResponse:
+    return SchemaDiffResponse(
+        dataset_id=dataset_id,
+        has_diff=diff.has_diff,
+        added_columns=diff.added_columns,
+        missing_columns=diff.missing_columns,
+        type_changes=[
+            ColumnDiff(column=c["column"], old_type=c["old_type"], new_type=c["new_type"])
+            for c in diff.type_changes
+        ],
+        suggested_mappings=[
+            ColumnDiff(column=s["column"], suggested_target=s["suggested_target"])
+            for s in diff.suggested_mappings
+        ],
+    )
 
 
 def _job_to_response(job) -> IngestionJobResponse:
@@ -127,6 +147,53 @@ async def get_job(
     return _job_to_response(job)
 
 
+# ── Staged preview (for the import wizard) ────────────────────────────────────
+
+
+@router.get("/jobs/{job_id}/staged-preview", response_model=StagedPreviewResponse)
+async def staged_preview(
+    job_id: uuid.UUID,
+    limit: int = Query(default=50, ge=1, le=500),
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Sample rows + inferred schema of a staged (uncommitted) source, plus the diff
+    against the dataset's latest version. Powers the DataForge import-review step."""
+    import json
+
+    job = repo.get_job(db, job_id)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+
+    try:
+        df = load_source(job, nrows=limit)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Could not read staged source: {exc}",
+        )
+
+    inferred = infer_schema(df)
+    # JSON-safe rows (NaN→null, numpy/datetime → native/iso) via pandas' own encoder.
+    sample_rows = json.loads(df.to_json(orient="values", date_format="iso"))
+
+    latest = repo.get_latest_version(db, job.dataset_id)
+    previous_schema = dict(latest.schema) if latest else None
+    diff_resp = (
+        _diff_to_response(job.dataset_id, compute_diff(latest.schema, inferred))
+        if latest
+        else None
+    )
+
+    return StagedPreviewResponse(
+        columns=list(df.columns),
+        dataset_schema=inferred,
+        sample_rows=sample_rows,
+        previous_schema=previous_schema,
+        diff=diff_resp,
+    )
+
+
 # ── Submit schema resolution ──────────────────────────────────────────────────
 
 
@@ -188,7 +255,11 @@ async def delete_dataset(
 
 
 @router.get(
-    "/datasets/{dataset_id}/versions", response_model=list[DatasetVersionResponse]
+    "/datasets/{dataset_id}/versions",
+    response_model=list[DatasetVersionResponse],
+    # Serialize by field name so the JSON key is `dataset_schema` (the field aliases
+    # `schema` only for reading the ORM attribute). Matches the frontend + preview endpoint.
+    response_model_by_alias=False,
 )
 async def list_versions(
     dataset_id: uuid.UUID,
@@ -215,7 +286,17 @@ async def get_schema_diff(
             detail="No versions found for dataset",
         )
 
-    if len(versions) == 1:
+    # If an ingestion is awaiting schema resolution, diff the latest committed
+    # version against the *incoming* (pending) schema — that is what the user resolves.
+    pending_job = repo.get_latest_pending_job(db, dataset_id)
+    pending_schema = (
+        pending_job.source_config.get("_pending_schema")
+        if pending_job and pending_job.source_config
+        else None
+    )
+    if pending_schema:
+        diff = compute_diff(versions[-1].schema, pending_schema)
+    elif len(versions) == 1:
         return SchemaDiffResponse(
             dataset_id=dataset_id,
             has_diff=False,
@@ -224,9 +305,9 @@ async def get_schema_diff(
             type_changes=[],
             suggested_mappings=[],
         )
-
-    prev, latest = versions[-2], versions[-1]
-    diff = compute_diff(prev.schema, latest.schema)
+    else:
+        prev, latest = versions[-2], versions[-1]
+        diff = compute_diff(prev.schema, latest.schema)
 
     return SchemaDiffResponse(
         dataset_id=dataset_id,

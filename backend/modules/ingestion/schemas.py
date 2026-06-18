@@ -93,6 +93,15 @@ class MappingRuleRequest(BaseModel):
 
 class ResolveSchemaMappingRequest(BaseModel):
     rules: list[MappingRuleRequest]
+    accept_new_schema: bool = False
+
+    @model_validator(mode="after")
+    def validate_resolution(self) -> "ResolveSchemaMappingRequest":
+        if not self.rules and not self.accept_new_schema:
+            raise ValueError(
+                "Provide mapping rules or set accept_new_schema to resolve the schema diff"
+            )
+        return self
 
 
 class MappingRuleResponse(BaseModel):
@@ -105,6 +114,15 @@ class MappingRuleResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class StagedPreviewResponse(BaseModel):
+    """Sampled preview of a staged (not-yet-committed) ingestion source, for the import wizard."""
+    columns: list[str]
+    dataset_schema: dict[str, str]
+    sample_rows: list[list]
+    previous_schema: dict[str, str] | None = None
+    diff: SchemaDiffResponse | None = None
 
 
 class DatasetVersionResponse(BaseModel):
