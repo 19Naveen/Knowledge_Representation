@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from modules.ingestion.transforms import TransformStep
+
 
 ColumnType = Literal["string", "integer", "decimal", "boolean", "timestamp"]
 
@@ -89,6 +91,11 @@ class MappingRuleRequest(BaseModel):
         if self.transform_type == "drop" and self.target_column is not None:
             raise ValueError("target_column must be None when transform_type is 'drop'")
         return self
+
+
+class CommitJobRequest(BaseModel):
+    """The transform plan the user builds in DataForge, submitted to commit an import."""
+    transforms: list[TransformStep] = Field(default_factory=list)
 
 
 class ResolveSchemaMappingRequest(BaseModel):

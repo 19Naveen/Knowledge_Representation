@@ -5,8 +5,8 @@ from core.database import SessionLocal
 from modules.ingestion import repository as repo
 from modules.ingestion.enums import JobStatus
 from modules.ingestion.schema_inference import infer_schema
-from modules.ingestion.schema_diff import compute_diff, apply_rules
 from modules.ingestion.source_loader import load_source
+from modules.ingestion.transforms import apply_transforms
 from modules.ingestion.storage.minio_client import upload_dataframe_as_parquet, delete_object
 
 
@@ -27,23 +27,15 @@ def run_ingestion_pipeline(self, job_id: str):
         dataset = repo.get_dataset(db, job.dataset_id)
 
         df = load_source(job)
+
+        # Apply the transform plan the user built in the import wizard (DataForge).
+        transforms = (job.source_config or {}).get("_transforms") or []
+        if transforms:
+            df = apply_transforms(df, transforms)
+
         inferred_schema = infer_schema(df)
 
         latest_version = repo.get_latest_version(db, job.dataset_id)
-        if latest_version:
-            diff = compute_diff(latest_version.schema, inferred_schema)
-            existing_rules = repo.get_mapping_rules(db, job.dataset_id)
-            accept_new_schema = bool((job.source_config or {}).get("_accept_new_schema"))
-
-            if diff.has_diff and not existing_rules and not accept_new_schema:
-                repo.store_pending_schema(db, job.id, inferred_schema)
-                return {"status": "awaiting_schema_resolution", "job_id": job_id}
-
-            # When accepting the new schema as-is, skip any prior mapping rules.
-            if existing_rules and not accept_new_schema:
-                df = apply_rules(df, existing_rules)
-                inferred_schema = infer_schema(df)
-
         next_version = (latest_version.version + 1) if latest_version else 1
 
         # Storage layout (inside bucket 'datasets'): {workspace_id}/{dataset_id}/raw/v{n}/data.parquet

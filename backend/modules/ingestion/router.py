@@ -11,6 +11,7 @@ from modules.ingestion.schema_inference import infer_schema
 from modules.ingestion.source_loader import load_source
 from modules.ingestion.schemas import (
     ColumnDiff,
+    CommitJobRequest,
     CreateIngestionJobRequest,
     DatasetResponse,
     DatasetVersionResponse,
@@ -68,7 +69,7 @@ async def create_job(
     user: dict = Depends(get_current_user),
 ):
     _, job = create_ingestion_job(db, payload)
-    run_ingestion_pipeline.delay(str(job.id))
+    # No auto-dispatch: the user reviews + transforms in DataForge, then POSTs /commit.
     return _job_to_response(job)
 
 
@@ -126,7 +127,7 @@ async def create_job_from_file(
     db.commit()
     db.refresh(job)
 
-    run_ingestion_pipeline.delay(str(job.id))
+    # No auto-dispatch: the user reviews + transforms in DataForge, then POSTs /commit.
     return _job_to_response(job)
 
 
@@ -192,6 +193,31 @@ async def staged_preview(
         previous_schema=previous_schema,
         diff=diff_resp,
     )
+
+
+# ── Commit an import (apply transform plan + run pipeline) ─────────────────────
+
+
+@router.post("/jobs/{job_id}/commit", response_model=IngestionJobResponse)
+async def commit_job(
+    job_id: uuid.UUID,
+    payload: CommitJobRequest,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Persist the user's transform plan and dispatch the pipeline to write the version."""
+    job = repo.get_job(db, job_id)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    if job.status != JobStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Job is not awaiting commit (status={job.status.value})",
+        )
+
+    repo.set_transform_plan(db, job_id, [s.model_dump() for s in payload.transforms])
+    run_ingestion_pipeline.delay(str(job_id))
+    return _job_to_response(repo.get_job(db, job_id))
 
 
 # ── Submit schema resolution ──────────────────────────────────────────────────

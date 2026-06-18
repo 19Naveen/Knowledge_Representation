@@ -90,11 +90,58 @@ def store_pending_schema(db: Session, job_id: uuid.UUID, schema: dict) -> None:
         db.commit()
 
 
+def set_accept_new_schema(db: Session, job_id: uuid.UUID) -> None:
+    """Flag a job to bypass the schema-diff gate and version the new schema as-is."""
+    job = db.query(IngestionJob).filter(IngestionJob.id == job_id).first()
+    if job:
+        config = dict(job.source_config or {})
+        config["_accept_new_schema"] = True
+        config.pop("_pending_schema", None)  # resolved → no longer awaiting
+        job.source_config = config
+        job.status = JobStatus.PENDING
+        job.updated_at = datetime.now(timezone.utc)
+        db.commit()
+
+
+def set_transform_plan(db: Session, job_id: uuid.UUID, transforms: list[dict]) -> None:
+    """Persist the user's transform plan on the job before dispatching the pipeline."""
+    job = db.query(IngestionJob).filter(IngestionJob.id == job_id).first()
+    if job:
+        config = dict(job.source_config or {})
+        config["_transforms"] = transforms
+        job.source_config = config
+        job.updated_at = datetime.now(timezone.utc)
+        db.commit()
+
+
+def clear_pending_schema(db: Session, job_id: uuid.UUID) -> None:
+    """Drop the awaiting-resolution marker once the user has resolved the diff."""
+    job = db.query(IngestionJob).filter(IngestionJob.id == job_id).first()
+    if job and job.source_config and "_pending_schema" in job.source_config:
+        config = dict(job.source_config)
+        config.pop("_pending_schema", None)
+        job.source_config = config
+        db.commit()
+
+
 def get_pending_schema(db: Session, job_id: uuid.UUID) -> dict | None:
     job = db.query(IngestionJob).filter(IngestionJob.id == job_id).first()
     if job and job.source_config:
         return job.source_config.get("_pending_schema")
     return None
+
+
+def get_latest_pending_job(db: Session, dataset_id: uuid.UUID) -> IngestionJob | None:
+    """Most recent PENDING job for a dataset (used to surface the incoming schema diff)."""
+    return (
+        db.query(IngestionJob)
+        .filter(
+            IngestionJob.dataset_id == dataset_id,
+            IngestionJob.status == JobStatus.PENDING,
+        )
+        .order_by(IngestionJob.created_at.desc())
+        .first()
+    )
 
 
 # ── DatasetVersion ────────────────────────────────────────────────────────────
