@@ -22,3 +22,5 @@ class TransformType(enum.Enum):
     MAP = "map"
     DROP = "drop"
     CAST = "cast"
+    FILTER = "filter"
+    FILLNA = "fillna"
