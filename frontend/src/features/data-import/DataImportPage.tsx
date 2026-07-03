@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/shared/PageHeader";
-import { Database, FileSpreadsheet, Upload, Plus, CheckCircle2, ArrowRight, Loader2, AlertCircle, Activity, RefreshCw, ChevronRight, Trash2 } from "lucide-react";
+import { Database, FileSpreadsheet, Upload, Plus, ArrowRight, Loader2, AlertCircle, RefreshCw, ChevronRight, Trash2 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { useAuthContext } from "../../lib/context/AuthContext";
 import { useWorkspaceContext } from "../../lib/context/WorkspaceContext";
+import { readError } from "../../lib/http";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
-type Step = "list" | "choose_dataset" | "db_creds" | "uploading" | "polling" | "schema_diff" | "success" | "error";
+type Step = "list" | "choose_dataset" | "db_creds" | "uploading" | "error";
 
 interface DatasetSummary {
   id: string;
@@ -25,15 +27,6 @@ interface JobResponse {
   status: string;
   source_type: string;
   error_message?: string;
-}
-
-interface SchemaDiffResponse {
-  dataset_id: string;
-  has_diff: boolean;
-  added_columns: string[];
-  missing_columns: string[];
-  type_changes: { column: string; old_type: string; new_type: string }[];
-  suggested_mappings: { column: string; suggested_target: string }[];
 }
 
 interface DatasetVersion {
@@ -65,6 +58,7 @@ function formatBytes(bytes: number | null): string {
 }
 
 export function DataImportPage() {
+  const navigate = useNavigate();
   const { session } = useAuthContext();
   const { activeWorkspace } = useWorkspaceContext();
 
@@ -72,8 +66,6 @@ export function DataImportPage() {
   const [step, setStep] = useState<Step>("list");
   const [datasets, setDatasets] = useState<DatasetSummary[]>([]);
   const [datasetsLoading, setDatasetsLoading] = useState(true);
-  const [job, setJob] = useState<JobResponse | null>(null);
-  const [diff, setDiff] = useState<SchemaDiffResponse | null>(null);
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -87,7 +79,6 @@ export function DataImportPage() {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Ref so "Add Data" dataset ID is available synchronously when onChange fires
   const appendToDatasetRef = useRef<string | null>(null);
 
@@ -144,9 +135,10 @@ export function DataImportPage() {
     const source_type = sourceTypeMap[ext ?? ""] ?? "csv";
 
     const resolvedDatasetId = datasetId ?? crypto.randomUUID();
+    const datasetName = file.name.replace(/\.[^.]+$/, "");
     const form = new FormData();
     form.append("dataset_id", resolvedDatasetId);
-    form.append("dataset_name", file.name.replace(/\.[^.]+$/, ""));
+    form.append("dataset_name", datasetName);
     form.append("workspace_id", activeWorkspace!.id);
     form.append("source_type", source_type);
     form.append("file", file);
@@ -157,13 +149,12 @@ export function DataImportPage() {
         headers: authHeaders(),
         body: form,
       });
-      if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.detail ?? "Upload failed");
-      }
+      if (!res.ok) throw new Error(await readError(res, "Upload failed"));
       const data: JobResponse = await res.json();
-      setJob(data);
-      startPolling(data.id, data.dataset_id);
+      // Job is staged (PENDING) — hand off to DataForge for review & commit.
+      navigate("/app/data-transform", {
+        state: { jobId: data.id, datasetId: data.dataset_id, datasetName },
+      });
     } catch (e: any) {
       setError(e.message);
       setStep("error");
@@ -177,9 +168,10 @@ export function DataImportPage() {
     setError("");
 
     const datasetId = selectedDatasetId ?? crypto.randomUUID();
+    const datasetName = dbForm.dataset_name || `${dbForm.source_type}_${dbForm.table}`;
     const payload = {
       dataset_id: datasetId,
-      dataset_name: dbForm.dataset_name || `${dbForm.source_type}_${dbForm.table}`,
+      dataset_name: datasetName,
       workspace_id: activeWorkspace!.id,
       source_type: dbForm.source_type,
       db_config: {
@@ -195,87 +187,25 @@ export function DataImportPage() {
         headers: { ...authHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.detail ?? "Failed to start ingestion");
-      }
+      if (!res.ok) throw new Error(await readError(res, "Failed to start ingestion"));
       const data: JobResponse = await res.json();
-      setJob(data);
-      startPolling(data.id, data.dataset_id);
+      // Job is staged (PENDING) — hand off to DataForge for review & commit.
+      navigate("/app/data-transform", {
+        state: { jobId: data.id, datasetId: data.dataset_id, datasetName },
+      });
     } catch (e: any) {
       setError(e.message);
       setStep("error");
     }
   }
 
-  // ── Poll job status ────────────────────────────────────────────────────────
-  function startPolling(jobId: string, datasetId: string) {
-    setStep("polling");
-    if (pollRef.current) clearInterval(pollRef.current);
-
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`${API_BASE}/data-ingest/jobs/${jobId}`, { headers: authHeaders() });
-        if (!res.ok) return;
-        const data: JobResponse = await res.json();
-        setJob(data);
-
-        if (data.status === "SUCCESS") {
-          clearInterval(pollRef.current!);
-          setStep("success");
-          fetchDatasets(); // refresh list
-        } else if (data.status === "FAILED") {
-          clearInterval(pollRef.current!);
-          setError(data.error_message ?? "Pipeline failed");
-          setStep("error");
-        } else if (data.status === "PENDING") {
-          clearInterval(pollRef.current!);
-          const diffRes = await fetch(`${API_BASE}/data-ingest/datasets/${datasetId}/schema`, { headers: authHeaders() });
-          if (diffRes.ok) { setDiff(await diffRes.json()); setStep("schema_diff"); }
-        }
-      } catch { /* transient, keep polling */ }
-    }, 2000);
-  }
-
-  // ── Schema resolution ──────────────────────────────────────────────────────
-  async function resolveSchema(rules: { source_column: string; target_column?: string; transform_type: string; cast_to_type?: string }[]) {
-    if (!job) return;
-    setError("");
-    try {
-      const res = await fetch(`${API_BASE}/data-ingest/jobs/${job.id}/resolve`, {
-        method: "POST",
-        headers: { ...authHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ rules }),
-      });
-      if (!res.ok) { const b = await res.json(); throw new Error(b.detail ?? "Resolution failed"); }
-      const updated: JobResponse = await res.json();
-      setJob(updated);
-      startPolling(updated.id, updated.dataset_id);
-    } catch (e: any) { setError(e.message); setStep("error"); }
-  }
-
   function reset() {
-    if (pollRef.current) clearInterval(pollRef.current);
     if (fileRef.current) fileRef.current.value = "";
     appendToDatasetRef.current = null;
     setStep("list");
-    setJob(null);
-    setDiff(null);
     setError("");
     setSelectedDatasetId(null);
     setPendingFile(null);
-  }
-
-  function addMoreData() {
-    if (pollRef.current) clearInterval(pollRef.current);
-    if (fileRef.current) fileRef.current.value = "";
-    appendToDatasetRef.current = null;
-    setJob(null);
-    setDiff(null);
-    setError("");
-    setSelectedDatasetId(null);
-    setPendingFile(null);
-    setStep("list");
   }
 
   async function openDetail(datasetId: string) {
@@ -540,7 +470,7 @@ export function DataImportPage() {
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {Object.entries(detailVersions[detailVersions.length - 1].dataset_schema).map(([col, type]) => (
+                                    {Object.entries(detailVersions[detailVersions.length - 1].dataset_schema ?? {}).map(([col, type]) => (
                                       <tr key={col} className="border-b border-border-subtle last:border-0 hover:bg-surface-2/50">
                                         <td className="px-4 py-2 font-mono text-text">{col}</td>
                                         <td className="px-4 py-2 text-text-tertiary">{type}</td>
@@ -695,116 +625,7 @@ export function DataImportPage() {
         {step === "uploading" && (
           <div className="max-w-sm mx-auto mt-20 text-center space-y-4">
             <Loader2 size={36} className="animate-spin text-primary mx-auto" />
-            <p className="font-bold">Uploading &amp; queuing pipeline…</p>
-          </div>
-        )}
-
-        {/* ── Polling ───────────────────────────────────────────────────────── */}
-        {step === "polling" && (
-          <div className="max-w-sm mx-auto mt-20 text-center space-y-6">
-            <div className="size-14 rounded-full border-4 border-primary/20 border-t-primary animate-spin mx-auto" />
-            <div>
-              <p className="font-bold">Pipeline running…</p>
-              <p className="text-sm text-text-secondary mt-1">Inferring schema · writing Parquet · storing version</p>
-            </div>
-            {job && (
-              <div className="card p-4 text-left space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">Job ID</span>
-                  <span className="font-mono truncate max-w-[180px]">{job.id}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">Status</span>
-                  <span className="flex items-center gap-1.5 font-bold text-primary">
-                    <Activity size={10} className="animate-pulse" /> {job.status}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Schema diff ───────────────────────────────────────────────────── */}
-        {step === "schema_diff" && diff && (
-          <div className="max-w-2xl mx-auto animate-in slide-in-from-bottom duration-400 space-y-5">
-            <div className="card p-6 border-warning/30 bg-warning/5 space-y-4">
-              <div className="flex items-start gap-4">
-                <AlertCircle size={20} className="text-warning shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="font-bold">Schema changed since last version</h3>
-                  <p className="text-sm text-text-secondary mt-1">Resolve the mapping before the pipeline continues.</p>
-                </div>
-              </div>
-              {diff.added_columns.length > 0 && (
-                <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-success mb-2">New columns</p>
-                  <div className="flex flex-wrap gap-2">
-                    {diff.added_columns.map((c) => <span key={c} className="px-2 py-1 rounded bg-success/10 text-success text-xs font-mono border border-success/20">{c}</span>)}
-                  </div>
-                </div>
-              )}
-              {diff.missing_columns.length > 0 && (
-                <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-danger mb-2">Missing columns</p>
-                  <div className="flex flex-wrap gap-2">
-                    {diff.missing_columns.map((c) => <span key={c} className="px-2 py-1 rounded bg-danger/10 text-danger text-xs font-mono border border-danger/20">{c}</span>)}
-                  </div>
-                </div>
-              )}
-              {diff.type_changes.length > 0 && (
-                <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-warning mb-2">Type changes</p>
-                  {diff.type_changes.map((c) => (
-                    <p key={c.column} className="text-xs font-mono"><span className="font-bold">{c.column}</span> <span className="text-text-tertiary">{c.old_type} → {c.new_type}</span></p>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="card p-6 space-y-3">
-              {diff.suggested_mappings.length > 0 && (
-                <button
-                  onClick={() => resolveSchema(diff.suggested_mappings.map((s) => ({ source_column: s.suggested_target, target_column: s.column, transform_type: "map" })))}
-                  className="btn btn-primary w-full flex items-center justify-center gap-2"
-                >
-                  Apply Suggested Mappings <ArrowRight size={14} />
-                </button>
-              )}
-              <button
-                onClick={() => resolveSchema(diff.missing_columns.map((c) => ({ source_column: c, transform_type: "drop" })))}
-                className="btn btn-secondary w-full"
-              >
-                Drop Missing Columns &amp; Continue
-              </button>
-              <button onClick={reset} className="text-sm text-text-tertiary hover:text-text font-semibold w-full text-center">Cancel</button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Success ───────────────────────────────────────────────────────── */}
-        {step === "success" && job && (
-          <div className="max-w-md mx-auto mt-16 card p-10 text-center animate-in zoom-in duration-500 shadow-2xl shadow-primary/10 space-y-6">
-            <div className="size-16 bg-success/10 text-success rounded-full flex items-center justify-center mx-auto border border-success/20">
-              <CheckCircle2 size={32} />
-            </div>
-            <div>
-              <h3 className="text-xl font-black tracking-tight">Ingestion Complete</h3>
-              <p className="text-sm text-text-secondary mt-2 leading-relaxed">
-                Data versioned and stored successfully.
-              </p>
-            </div>
-            <div className="p-3 rounded-xl bg-surface-2 text-xs font-mono text-left space-y-1.5">
-              <div className="flex justify-between"><span className="text-text-secondary">Job</span><span>{job.id.slice(0, 16)}…</span></div>
-              <div className="flex justify-between"><span className="text-text-secondary">Dataset</span><span>{job.dataset_id.slice(0, 16)}…</span></div>
-              <div className="flex justify-between"><span className="text-text-secondary">Status</span><span className="text-success font-bold">SUCCESS</span></div>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={addMoreData} className="btn btn-secondary flex-1 flex items-center justify-center gap-2">
-                <Plus size={14} /> Add More Data
-              </button>
-              <button onClick={reset} className="btn btn-primary flex-1">
-                Done
-              </button>
-            </div>
+            <p className="font-bold">Staging source &amp; opening DataForge…</p>
           </div>
         )}
 

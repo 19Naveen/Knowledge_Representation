@@ -61,17 +61,22 @@ def resolve_schema_mapping(
             detail=f"Job is not awaiting schema resolution (status={job.status.value})",
         )
 
-    rules = [
-        {
-            "source_column": r.source_column,
-            "target_column": r.target_column,
-            "transform_type": TransformType(r.transform_type),
-            "cast_to_type": r.cast_to_type,
-        }
-        for r in payload.rules
-    ]
-    repo.upsert_mapping_rules(db, job.dataset_id, rules)
-    repo.update_job_status(db, job_id, JobStatus.PENDING)
+    if payload.rules:
+        rules = [
+            {
+                "source_column": r.source_column,
+                "target_column": r.target_column,
+                "transform_type": TransformType(r.transform_type),
+                "cast_to_type": r.cast_to_type,
+            }
+            for r in payload.rules
+        ]
+        repo.upsert_mapping_rules(db, job.dataset_id, rules)
+        repo.clear_pending_schema(db, job_id)  # resolved → not awaiting anymore
+        repo.update_job_status(db, job_id, JobStatus.PENDING)
+    else:
+        # Accept the inferred schema as-is → version it without any transforms.
+        repo.set_accept_new_schema(db, job_id)
 
     run_ingestion_pipeline.delay(str(job_id))
     return repo.get_job(db, job_id)

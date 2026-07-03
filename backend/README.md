@@ -251,7 +251,9 @@ PENDING (awaiting schema resolution) → user calls /resolve → RUNNING → SUC
 | POST | `/jobs` | Yes | Create job from DB source (JSON) |
 | POST | `/jobs/upload` | Yes | Create job from file (multipart) |
 | GET | `/jobs/{job_id}` | Yes | Poll job status |
-| POST | `/jobs/{job_id}/resolve` | Yes | Submit schema mapping rules, re-dispatch |
+| POST | `/jobs/{job_id}/resolve` | Yes | Resolve a schema diff: submit mapping rules **or** `accept_new_schema`, then re-dispatch |
+| GET | `/datasets` | Yes | List datasets in a workspace (with version count + latest stats) |
+| DELETE | `/datasets/{dataset_id}` | Yes | Delete dataset + versions + MinIO objects |
 | GET | `/datasets/{dataset_id}/versions` | Yes | List all versions |
 | GET | `/datasets/{dataset_id}/schema` | Yes | Get latest schema and diff |
 
@@ -281,6 +283,12 @@ When the inferred schema differs from the latest version, a diff is returned:
 ```
 
 User resolves by posting mapping rules (`map` / `drop` / `cast`). Rules are saved per dataset and **auto-applied on all future ingestions** for that dataset.
+
+Alternatively the user can **accept the incoming schema as-is**: posting `accept_new_schema: true`
+with no rules flags the job (`source_config._accept_new_schema`) so the pipeline bypasses the diff
+gate and writes the new schema as the next version. Because no transforms are saved, this also
+clears any prior mapping rules for the dataset (they no longer apply to the new shape). Downstream
+features always read the latest version, so the new schema takes effect everywhere immediately.
 
 #### Database Tables
 
@@ -320,9 +328,24 @@ Applies transformation steps to versioned datasets. Output is a new immutable ve
 
 ### 4. Query Studio
 
-**Prefix:** `/api/v1/query` — Stub
+**Prefix:** `/api/v1/query` — Implemented
 
-SQL querying on Parquet via DuckDB. Supports NL → SQL via LLM.
+DuckDB compute over the **latest version** of a dataset, read directly from MinIO via DuckDB's
+`httpfs` (S3) extension — no data is copied into Postgres or staged on disk. `modules/query/duckdb_executor.py`
+is the single place where "always use the latest version" is enforced (`repo.get_latest_version`).
+It reuses the existing `MINIO_*` settings (path-style S3, `s3_use_ssl=false`).
+
+This module also powers the EDA Dashboards and Data Transform preview on the frontend.
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/query/execute` | Yes | Run a read-only single `SELECT` against the latest version, exposed as the view `dataset`. Returns `{columns, rows}` (capped, default 1000 rows). |
+| POST | `/query/aggregate` | Yes | `GROUP BY` a dimension and apply `sum/avg/count/min/max` to a measure → `{data: [{label, value}]}` (for charts). |
+| GET | `/query/datasets/{dataset_id}/preview?limit=N` | Yes | First N rows + schema of the latest version. |
+
+**Safety:** `/query/execute` rejects multiple statements, anything that is not `SELECT`/`WITH`, and a
+denylist of mutating keywords; the query is also wrapped as a subquery before running. Aggregate
+column names are validated against the version schema and quoted.
 
 ---
 
@@ -365,7 +388,7 @@ All endpoints prefixed with `/api/v1`.
 | Auth | `/auth` | Implemented |
 | Ingestion | `/data-ingest` | Implemented |
 | Transform | `/transform` | Stub |
-| Query | `/query` | Stub |
+| Query | `/query` | Implemented (DuckDB over latest version) |
 | Dashboard | `/dashboard` | Stub |
 | ML | `/ml` | Stub |
 | Workspace | `/workspaces` | Stub |
@@ -421,6 +444,19 @@ celery -A celery_app worker --loglevel=info
 ---
 
 ## Changelog
+
+### 2026-06-17 — Query module (DuckDB) + accept-new-schema resolution
+
+- Implemented `modules/query`: `duckdb_executor.py` (httpfs/S3 over MinIO, always reads the dataset's
+  latest version), `service.py` (read-only SELECT validation, aggregate, preview), `schemas.py`,
+  `router.py`. Registered `query_router` in `api/router.py`.
+- New endpoints: `POST /query/execute`, `POST /query/aggregate`, `GET /query/datasets/{id}/preview`.
+  These back the frontend EDA Dashboards, Query Studio, and Data Transform preview (real data).
+- Added `duckdb` dependency (`uv add duckdb`). Reuses existing `MINIO_*` env vars — no new config.
+- Ingestion: `ResolveSchemaMappingRequest` gained `accept_new_schema`; `service.resolve_schema_mapping`
+  and `tasks.run_ingestion_pipeline` now support accepting an incoming schema as a new version
+  (bypassing the diff gate via `source_config._accept_new_schema`). Added `repo.set_accept_new_schema`.
+- Documented previously-undocumented ingestion endpoints `GET /datasets` and `DELETE /datasets/{id}`.
 
 ### 2026-06-06 — Data Ingestion Pipeline implemented
 

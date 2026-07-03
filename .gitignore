@@ -20,5 +20,5 @@ Documentation/
 *.tmp
 *.bak
 *.swp
-
+dist/
 .DS_Store

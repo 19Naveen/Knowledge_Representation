@@ -104,8 +104,10 @@ frontend/
     │   │   ├── AuthContext.tsx    # Auth state + backend API calls
     │   │   ├── AppContext.tsx     # Datasets and dashboards state
     │   │   └── WorkspaceContext.tsx # Workspace and member state
+    │   ├── hooks/
+    │   │   └── useDatasets.ts     # useDatasets() (real datasets) + useQueryApi() (DuckDB endpoints)
     │   ├── mocks/
-    │   │   ├── data.ts            # Mock data for non-auth features
+    │   │   ├── data.ts            # Mock data for not-yet-wired features (ML pages)
     │   │   └── types.ts           # Types for mock data
     │   └── cn.ts                  # Classname utility (clsx/twMerge pattern)
     │
@@ -228,14 +230,28 @@ headers: {
 }
 ```
 
-**Implemented API calls** (in `AuthContext`):
+**Implemented API calls:**
 
-| Call | Endpoint | Description |
+| Call | Endpoint | Where |
 |---|---|---|
-| Login | `POST /auth/login` | Returns `access_token`, `user`, `expires_in` |
-| Signup | `POST /auth/signup` | Returns same as login |
+| Login | `POST /auth/login` | `AuthContext` |
+| Signup | `POST /auth/signup` | `AuthContext` |
+| Workspaces CRUD | `/workspaces` | `WorkspaceContext` |
+| Ingestion (upload, jobs, resolve, datasets, versions, schema) | `/data-ingest/*` | `DataImportPage` |
+| List datasets | `GET /data-ingest/datasets?workspace_id=` | `useDatasets()` |
+| Preview latest version | `GET /query/datasets/{id}/preview` | `useQueryApi().preview` |
+| Run SQL | `POST /query/execute` | `useQueryApi().execute` (Query Studio) |
+| Aggregate for charts | `POST /query/aggregate` | `useQueryApi().aggregate` (EDA Dashboards) |
 
-All other features currently use mock data from `src/lib/mocks/data.ts` and will be wired to backend endpoints as modules are implemented.
+### Real datasets & latest-version data (`src/lib/hooks/useDatasets.ts`)
+
+`useDatasets()` fetches the real datasets in the active workspace (source of truth shared by EDA
+Dashboards, Query Studio, and Data Transform). `useQueryApi()` wraps the DuckDB-backed `/query`
+endpoints. The frontend **never sends a version number** — the backend always resolves the latest
+version, so charts/queries/previews reflect the newest ingested schema automatically.
+
+The **ML pages** (Training, Prediction, AutoML, Deploy Sim) still use mock data from
+`src/lib/mocks/data.ts` pending the backend ML module.
 
 ---
 
@@ -312,6 +328,35 @@ npm run preview
 ---
 
 ## Changelog
+
+### 2026-06-18 — Review-gated Data Import wizard (hand-off to DataForge)
+
+- Extracted the FastAPI error helpers (`errMessage`, `readError`) into `src/lib/http.ts`; both
+  Data Import and Data Transform now import them.
+- **Data Import** (`DataImportPage.tsx`): uploading a file or connecting a DB now only *stages* the
+  source (job created PENDING) and navigates to `/app/data-transform` with router state
+  `{ jobId, datasetId, datasetName }`. Removed the in-page polling / schema-diff / success machinery.
+- **Data Transform** (`DataTransformPage.tsx`): added an **import-review mode** triggered when
+  `location.state.jobId` is present. It fetches `GET /data-ingest/jobs/{id}/staged-preview`, renders the
+  staged rows + schema, surfaces the schema diff (added/missing/type changes) with one-click
+  `suggested_mappings` rename actions, and provides a transform-plan builder (drop / rename / cast /
+  filter / fillna) where each UI step maps 1:1 to a backend `TransformStep`. "Save & Apply" POSTs to
+  `/commit`, polls `GET /jobs/{id}` until SUCCESS/FAILED, then returns to Data Import.
+  The no-`jobId` read-only preview behavior is unchanged.
+
+### 2026-06-17 — Real-data wiring for EDA, Query Studio, and Transform preview
+
+- Added `src/lib/hooks/useDatasets.ts` — `useDatasets()` (real workspace datasets) and
+  `useQueryApi()` (preview / execute / aggregate against the DuckDB `/query` endpoints).
+- **EDA Dashboards**: dataset selector + chart columns now come from real datasets; chart series are
+  computed live via `POST /query/aggregate` (replaced `generateMockData`).
+- **Query Studio**: converted from a simulated NL chat to a real read-only SQL runner against the
+  `dataset` view via `POST /query/execute`, rendering actual columns/rows.
+- **Data Transform**: dataset selector + preview table now show the latest version via
+  `GET /query/datasets/{id}/preview`; the step builder is retained (execution backend pending).
+- **Data Import**: added an "Accept as New Schema & Version" option in the schema-diff step
+  (`accept_new_schema`), so an incoming schema can be versioned as-is.
+- ML pages remain on mock data pending the backend ML module.
 
 ### 2026-06-07 — Landing page, auth flow, and onboarding added
 

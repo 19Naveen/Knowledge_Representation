@@ -143,6 +143,14 @@ For full setup details see [backend/README.md](./backend/README.md) and [fronten
 
 ## Changelog
 
+### 2026-06-17 — Live query/compute layer over latest version
+
+- DuckDB query layer (`/api/v1/query`) now reads dataset Parquet directly from MinIO via `httpfs`,
+  always resolving the **latest version** — realising the stateless-compute principle for EDA
+  Dashboards, Query Studio, and Data Transform preview.
+- Ingestion can now version a changed schema as-is ("accept new schema"), and all downstream
+  features read the latest version, so a new schema propagates everywhere automatically.
+
 ### 2026-06-06 — Three-file README split
 
 - Root README reduced to platform overview and getting started

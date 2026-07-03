@@ -1,156 +1,200 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/shared/PageHeader";
-import { datasets, workspace } from "../../lib/mocks/data";
+import { useDatasets, useQueryApi, API_BASE, type DatasetPreview } from "../../lib/hooks/useDatasets";
+import { useAuthContext } from "../../lib/context/AuthContext";
+import { errMessage, readError } from "../../lib/http";
 
-import { Server, ArrowRight, Play, CheckCircle2, Copy, Eye, Clock, GitBranch } from "lucide-react";
+// ── Backend TransformStep shapes (send exactly these keys) ────────────────────
+type CastType = "string" | "integer" | "decimal" | "boolean" | "timestamp";
+type FilterOp = "eq" | "ne" | "lt" | "le" | "gt" | "ge" | "isnull" | "notnull";
+type FillStrategy = "value" | "mean" | "median" | "mode";
 
-const rawData = [
-  { id: 1, region: 'South', dept: 'Engineering', salary: 72000 },
-  { id: 2, region: 'North', dept: 'Marketing', salary: 48500 },
-  { id: 3, region: 'South', dept: 'Engineering', salary: 95400 },
-  { id: 4, region: 'South', dept: 'Sales', salary: null },
-  { id: 5, region: 'East',  dept: 'Product', salary: 88200 },
-  { id: 6, region: 'North', dept: 'Sales', salary: null }
-];
+type TransformStep =
+  | { type: "drop"; column: string }
+  | { type: "rename"; column: string; to: string }
+  | { type: "cast"; column: string; to_type: CastType }
+  | { type: "filter"; column: string; op: FilterOp; value?: string }
+  | { type: "fillna"; column: string; strategy: FillStrategy; value?: string };
 
-const columnStats: Record<string, any> = {
-  'salary': { 
-    dtype: 'float64', missing: '20%', unique: 4, min: '48.5k', max: '95.4k',
-    dist: [10, 45, 80, 60, 100, 30, 15, 5] 
-  },
-  'region': { dtype: 'object', missing: '0%', unique: 3, top: 'South (66%)', empty: '0' },
-  'department': { dtype: 'object', missing: '0%', unique: 4, top: 'Engineering (33%)', empty: '0' }
+// ── Staged-preview contract ───────────────────────────────────────────────────
+interface SchemaDiff {
+  dataset_id: string;
+  has_diff: boolean;
+  added_columns: string[];
+  missing_columns: string[];
+  type_changes: { column: string; old_type: string; new_type: string }[];
+  suggested_mappings: { column: string; suggested_target: string }[];
+}
+
+interface StagedPreview {
+  columns: string[];
+  dataset_schema: Record<string, string>;
+  sample_rows: unknown[][];
+  previous_schema: Record<string, string> | null;
+  diff: SchemaDiff | null;
+}
+
+interface JobResponse {
+  id: string;
+  dataset_id: string;
+  status: string;
+  source_type: string;
+  error_message?: string;
+}
+
+interface ImportState {
+  jobId?: string;
+  datasetId?: string;
+  datasetName?: string;
+}
+
+const OP_KIND = ["drop", "rename", "cast", "filter", "fillna"] as const;
+type OpKind = (typeof OP_KIND)[number];
+
+const OP_LABEL: Record<OpKind, string> = {
+  drop: "Drop Column",
+  rename: "Rename Column",
+  cast: "Cast Type",
+  filter: "Filter Rows",
+  fillna: "Fill Missing",
 };
 
-const operationsDict = [
-  { title: 'Drop Nulls', desc: 'Remove rows containing NaN/Null values.', types: ['float64', 'object'] },
-  { title: 'Filter Rows', desc: 'Retains only rows matching a condition.', types: ['float64', 'object'] },
-  { title: 'Fill Missing (Impute)', desc: 'Replace missing data with statistical markers.', types: ['float64'] },
-  { title: 'Extract Regex', desc: 'Pull substring using pattern matching.', types: ['object'] },
-  { title: 'Z-Score Normalize', desc: 'Standardize numeric distribution.', types: ['float64'] }
-];
+const CAST_TYPES: CastType[] = ["string", "integer", "decimal", "boolean", "timestamp"];
+const FILTER_OPS: FilterOp[] = ["eq", "ne", "lt", "le", "gt", "ge", "isnull", "notnull"];
+const FILL_STRATEGIES: FillStrategy[] = ["value", "mean", "median", "mode"];
+
+function stepLabel(s: TransformStep): string {
+  switch (s.type) {
+    case "drop": return `drop ${s.column}`;
+    case "rename": return `rename ${s.column} → ${s.to}`;
+    case "cast": return `cast ${s.column} → ${s.to_type}`;
+    case "filter": return `filter ${s.column} ${s.op}${s.value !== undefined ? ` ${s.value}` : ""}`;
+    case "fillna": return `fillna ${s.column} (${s.strategy}${s.value !== undefined ? `=${s.value}` : ""})`;
+  }
+}
 
 export function DataTransformPage() {
-  const [selectedDatasetId, setSelectedDatasetId] = useState(workspace.activeDatasetId || (datasets && datasets[0]?.id));
-  
-  const [pipeline, setPipeline] = useState([{ id: 'source', title: 'Source Data', code: "pd.read_sql('SELECT * FROM employees')" }]);
+  const location = useLocation();
+  const importState = (location.state ?? {}) as ImportState;
+  const jobId = importState.jobId;
+  const importMode = Boolean(jobId);
+
+  if (importMode) {
+    return <ImportReview jobId={jobId!} datasetName={importState.datasetName} />;
+  }
+  return <PreviewMode />;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Read-only preview mode (UNCHANGED behavior when there is no jobId)
+// ══════════════════════════════════════════════════════════════════════════════
+interface UIStep {
+  id: string;
+  title: string;
+  code: string;
+}
+
+const operationsDict = [
+  { title: "Drop Nulls", desc: "Remove rows containing NaN/Null values." },
+  { title: "Filter Rows", desc: "Retain only rows matching a condition." },
+  { title: "Fill Missing (Impute)", desc: "Replace missing data with statistical markers." },
+  { title: "Cast Type", desc: "Convert a column to another data type." },
+  { title: "Z-Score Normalize", desc: "Standardize a numeric distribution." },
+];
+
+function PreviewMode() {
+  const { datasets, loading: datasetsLoading } = useDatasets();
+  const { preview } = useQueryApi();
+
+  const [selectedDatasetId, setSelectedDatasetId] = useState<string>("");
+  const [data, setData] = useState<DatasetPreview | null>(null);
+  const [previewError, setPreviewError] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const [pipeline, setPipeline] = useState<UIStep[]>([{ id: "source", title: "Source Data", code: "SELECT * FROM dataset" }]);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
-  
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [view, setView] = useState<'select' | 'config' | 'versions' | 'run'>('select');
-  const [selectedColumn, setSelectedColumn] = useState<string | null>(null);
-  const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Version Control & Execution State
-  const [activeVersion, setActiveVersion] = useState('v2');
-  const [runMode, setRunMode] = useState<'incremental' | 'full'>('incremental');
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedColumn, setSelectedColumn] = useState<string>("");
+  const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const partitionStatus = [
-    { id: 'date=2026-05-01', status: 'up-to-date', icon: <CheckCircle2 size={14} className="text-success" /> },
-    { id: 'date=2026-05-02', status: 'changed', icon: <span className="text-[10px] w-[14px] flex justify-center">⚠️</span> },
-    { id: 'date=2026-05-03', status: 'new', icon: <span className="text-[10px] w-[14px] flex justify-center">➕</span> }
-  ];
+  useEffect(() => {
+    if (!selectedDatasetId && datasets.length > 0) setSelectedDatasetId(datasets[0].id);
+  }, [datasets, selectedDatasetId]);
 
-  const currentData = useMemo(() => {
-    let data = [...rawData];
-    for (let i = 1; i <= activeStepIndex; i++) {
-      if (pipeline[i].title === 'Drop Nulls') data = data.filter(row => row.salary !== null);
-      if (pipeline[i].title === 'Filter Rows') data = data.filter(row => row.region === 'South');
-    }
-    return data;
-  }, [pipeline, activeStepIndex]);
+  useEffect(() => {
+    if (!selectedDatasetId) { setData(null); return; }
+    let cancelled = false;
+    setPreviewLoading(true);
+    setPreviewError("");
+    preview(selectedDatasetId, 50)
+      .then((p) => { if (!cancelled) setData(p); })
+      .catch((e) => { if (!cancelled) { setData(null); setPreviewError(e.message); } })
+      .finally(() => { if (!cancelled) setPreviewLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedDatasetId, preview]);
 
-  const activeStepCode = pipeline[activeStepIndex]?.code || '';
+  const columns = data ? data.columns : [];
 
-  const openDrawer = (v: 'select' | 'config' | 'versions' | 'run', col: string | null = null, op: string | null = null) => {
-    setView(v);
-    if (col) setSelectedColumn(col);
-    if (op) setSelectedOperation(op);
+  const openDrawer = useCallback((op: string | null = null, col = "") => {
+    setSelectedOperation(op);
+    setSelectedColumn(col);
     setDrawerOpen(true);
-  };
+  }, []);
 
   const closeDrawer = () => {
     setDrawerOpen(false);
-    setTimeout(() => {
-      setSelectedColumn(null);
-      setSelectedOperation(null);
-      setView('select');
-      setSearchQuery('');
-    }, 200);
+    setTimeout(() => { setSelectedOperation(null); setSearchQuery(""); }, 200);
   };
 
   const applyOperation = () => {
     if (!selectedOperation) return;
     const codeMap: Record<string, string> = {
-      'Drop Nulls': `${selectedColumn ? `df.dropna(subset=['${selectedColumn}'])` : 'df.dropna()'}`,
-      'Filter Rows': `df[df['${selectedColumn || 'region'}'] == 'South']`,
+      "Drop Nulls": selectedColumn ? `df.dropna(subset=['${selectedColumn}'])` : "df.dropna()",
+      "Filter Rows": `df[df['${selectedColumn || columns[0] || "col"}'].notna()]`,
+      "Cast Type": `df['${selectedColumn}'] = df['${selectedColumn}'].astype(...)`,
+      "Z-Score Normalize": `df['${selectedColumn}'] = zscore(df['${selectedColumn}'])`,
     };
-    
-    const newPipeline = [...pipeline.slice(0, activeStepIndex + 1), {
+    setPipeline((prev) => [...prev, {
       id: `step-${Date.now()}`,
       title: selectedOperation,
-      code: codeMap[selectedOperation] || `df['${selectedColumn || 'col'}'].transform(...)`
-    }];
-    setPipeline(newPipeline);
-    setActiveStepIndex(newPipeline.length - 1);
+      code: codeMap[selectedOperation] || `df['${selectedColumn || "col"}'].transform(...)`,
+    }]);
+    setActiveStepIndex(pipeline.length);
     closeDrawer();
   };
 
+  const activeStepCode = pipeline[activeStepIndex]?.code || "";
+
   return (
     <div className="flex h-[calc(100vh-5rem)] flex-col overflow-hidden bg-[#fafafa]">
-      <style dangerouslySetInnerHTML={{__html: `
-        .wf-root { --geist-foreground: #000; --geist-background: #fff; --accents-1: #fafafa; --accents-2: #eaeaea; --accents-3: #999; }
-        .wf-container { height: calc(100vh - 120px); border: 1px solid var(--accents-2); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; position: relative; background: var(--geist-background); }
-        .wf-topbar { display: flex; align-items: center; padding: 0 16px; height: 52px; border-bottom: 1px solid var(--accents-2); background: var(--geist-background); flex-shrink: 0; }
-        .wf-sidebar { flex-shrink: 0; border-right: 1px solid var(--accents-2); display: flex; flex-direction: column; background: var(--accents-1); z-index: 2; transition: width 0.3s ease, min-width 0.3s ease; width: 220px; min-width: 220px; }
-        .wf-sidebar.collapsed { width: 0; min-width: 0; border-right: none; overflow: hidden; opacity: 0; pointer-events: none; }
-        .wf-step-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--accents-2); cursor: pointer; transition: background 0.2s; }
-        .wf-step-item:hover { background: var(--geist-background); }
-        .wf-step-item.active { background: var(--geist-background); box-shadow: inset 2px 0 0 #000; }
-        .wf-step-icon { width: 20px; height: 20px; border-radius: 4px; background: var(--accents-2); display: flex; align-items: center; justify-center; font-size: 10px; font-weight: bold; flex-shrink: 0; padding-left: 6.5px; padding-top: 1.5px;}
-        .wf-step-item.active .wf-step-icon { background: #000; color: #fff; }
-        .wf-table-container { overflow: auto; background: var(--geist-background); margin: 0; padding: 0; display: block; position: relative; z-index: 0; }
-        .wf-table-container table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; table-layout: auto; }
-        .wf-table-container th { position: sticky; top: 0; background: var(--geist-background); box-shadow: 0 1px 0 var(--accents-2); z-index: 2; padding: 12px 16px; border-right: 1px solid var(--accents-2); cursor: pointer; white-space: normal; }
-        .wf-table-container th:hover { background: var(--accents-1); }
-        .wf-table-container td { padding: 10px 16px; font-size: 13px; border-right: 1px solid var(--accents-2); border-bottom: 1px solid var(--accents-2); white-space: normal; }
-        .wf-op-card { padding: 12px; border: 1px solid var(--accents-2); border-radius: 6px; cursor: pointer; margin-bottom: 8px; }
-        .wf-op-card:hover { border-color: var(--geist-foreground); }
-        .wf-drawer { position: absolute; top: 52px; right: -320px; width: 320px; bottom: 0; background: var(--geist-background); border-left: 1px solid var(--accents-2); transition: right 0.3s ease; display: flex; flex-direction: column; z-index: 20; box-shadow: -4px 0 12px rgba(0,0,0,0.05); }
-        .wf-drawer.open { right: 0; }
-      `}} />
-      
-      <PageHeader 
-        title="Data Transformation" 
-        subtitle="Clean, shape, and transform your data visually."
+      <WfStyles />
+
+      <PageHeader
+        title="Data Transformation"
+        subtitle="Build a transformation pipeline visually. Preview runs on the latest version of the selected dataset."
         actions={
-          <div className="flex items-center gap-3">
-            <div className="relative flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-2 border border-subtle hover:border-primary/30 transition-colors text-xs group cursor-pointer">
-              <svg className="w-4 h-4 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79 8-4" />
-              </svg>
-              <select
-                className="bg-transparent border-none outline-none appearance-none pr-5 cursor-pointer text font-medium w-full"
-                value={selectedDatasetId}
-                onChange={(e) => setSelectedDatasetId(e.target.value)}
-              >
-                {datasets.map((d) => (
-                  <option key={d.id} value={d.id} className="bg-surface text">{d.name}</option>
-                ))}
-              </select>
-              <svg className="w-3 h-3 text-secondary absolute right-3 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
+          <div className="relative flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-2 border border-subtle text-xs">
+            <svg className="w-4 h-4 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79 8-4" />
+            </svg>
+            <select
+              className="bg-transparent border-none outline-none appearance-none pr-5 cursor-pointer text font-medium"
+              value={selectedDatasetId}
+              onChange={(e) => setSelectedDatasetId(e.target.value)}
+              disabled={datasetsLoading || datasets.length === 0}
+            >
+              {datasets.length === 0 && <option value="">No datasets</option>}
+              {datasets.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
           </div>
         }
       />
 
-      <div className="wf-root wf-container m-4 mb-0 flex-1">
+      <div className="wf-container m-4 mb-0 flex-1">
         <div className="wf-topbar">
           <div className="font-semibold text-sm border-r border-[#eaeaea] pr-4 mr-4 flex items-center gap-3">
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-[#666] hover:text-black transition-colors" title="Toggle Sidebar">
@@ -162,190 +206,100 @@ export function DataTransformPage() {
             DataForge
           </div>
           <div className="ml-auto flex gap-3 items-center text-xs text-[#666]">
-            <div>Rows: <strong className="text-black font-mono">{currentData.length}</strong></div>
-            <div>Cols: <strong className="text-black font-mono">4</strong></div>
-            <button className="text-[#666] hover:text-black border border-[#eaeaea] px-3 py-1.5 rounded font-medium ml-2 bg-white transition-colors text-xs flex items-center gap-1" onClick={() => openDrawer('versions')}>
-              <GitBranch size={14} /> {activeVersion}
-            </button>
-            <button className="bg-black text-white px-3 py-1.5 rounded font-medium ml-2 hover:bg-[#333] transition-colors" onClick={() => setShowSaveModal(true)}>Save & Apply</button>
+            <div>Preview rows: <strong className="text-black font-mono">{data?.rows.length ?? 0}</strong></div>
+            <div>Cols: <strong className="text-black font-mono">{columns.length}</strong></div>
+            <button className="bg-black text-white px-3 py-1.5 rounded font-medium ml-2 opacity-50 cursor-not-allowed" title="Transform execution backend coming soon" disabled>Save &amp; Apply</button>
           </div>
         </div>
 
         <div className="flex flex-1 overflow-hidden relative">
-          {/* Sidebar */}
-          <div className={`wf-sidebar ${sidebarOpen ? '' : 'collapsed'}`}>
+          <div className={`wf-sidebar ${sidebarOpen ? "" : "collapsed"}`}>
             <div className="text-xs font-semibold p-4">Execution Graph</div>
             <div className="flex-1 overflow-y-auto px-3">
               {pipeline.map((step, idx) => (
-                <div key={idx} className={`wf-step-item shadow-sm ${idx === activeStepIndex ? 'active' : ''}`} onClick={() => setActiveStepIndex(idx)}>
+                <div key={step.id} className={`wf-step-item shadow-sm ${idx === activeStepIndex ? "active" : ""}`} onClick={() => setActiveStepIndex(idx)}>
                   <div className="wf-step-icon">{idx + 1}</div>
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-medium mb-0.5">{step.title}</div>
-                    <div className="text-[11px] text-[#666] whitespace-nowrap overflow-hidden text-ellipsis font-mono">{step.code}</div>
+                    <div className="text-[11px] text-[#666] truncate font-mono">{step.code}</div>
                   </div>
                 </div>
               ))}
             </div>
             <div className="p-4 border-t border-[#eaeaea]">
-              <button 
-                onClick={() => openDrawer('select', null)}
-                className="w-full flex justify-between items-center text-[13px] border border-[#eaeaea] bg-white px-4 py-2 rounded hover:bg-[#fafafa] transition-colors shadow-sm"
-              >
+              <button onClick={() => openDrawer(null)} disabled={columns.length === 0}
+                className="w-full flex justify-between items-center text-[13px] border border-[#eaeaea] bg-white px-4 py-2 rounded hover:bg-[#fafafa] transition-colors shadow-sm disabled:opacity-40">
                 <span className="font-medium">Add Step</span>
                 <span className="text-[#666] text-lg leading-none">+</span>
               </button>
             </div>
           </div>
 
-          {/* Main Table Area */}
-          <div className="flex-1 flex flex-col overflow-hidden z-10 z-0 bg-white">
+          <div className="flex-1 flex flex-col overflow-hidden bg-white">
             <div className="flex items-center p-2 px-4 border-b border-[#eaeaea] gap-3 bg-[#fafafa]">
               <span className="font-mono text-xs font-semibold text-[#666]">fx</span>
               <input className="flex-1 border border-[#eaeaea] rounded px-3 py-2 font-mono text-xs bg-white text-[#666]" readOnly value={activeStepCode} />
             </div>
-            
+
             <div className="wf-table-container flex-1 overflow-auto">
-              <table>
-                <thead>
-                  <tr>
-                    <th style={{width: 50}}>#</th>
-                    <th onClick={() => openDrawer('select', 'region')}>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-xs font-semibold">region</span>
-                        <span className="text-[10px] font-mono text-[#666] bg-[#fafafa] px-1 rounded">object</span>
-                      </div>
-                      <div className="flex h-1 w-full bg-[#0070f3] mb-1"></div>
-                      <div className="flex justify-between text-[10px] text-[#666]"><span>100%</span></div>
-                    </th>
-                    <th onClick={() => openDrawer('select', 'department')}>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-xs font-semibold">department</span>
-                        <span className="text-[10px] font-mono text-[#666] bg-[#fafafa] px-1 rounded">object</span>
-                      </div>
-                      <div className="flex h-1 w-full bg-[#0070f3] mb-1"></div>
-                      <div className="flex justify-between text-[10px] text-[#666]"><span>100%</span></div>
-                    </th>
-                    <th onClick={() => openDrawer('select', 'salary')}>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-xs font-semibold">salary</span>
-                        <div className="flex items-center gap-2">
-                           <button className="text-[9px] text-[#666] hover:text-black border border-[#eaeaea] px-1.5 py-0.5 rounded bg-white transition-colors" title="View Lineage" onClick={(e) => { e.stopPropagation(); openDrawer('config', 'salary'); }}>Lineage</button>
-                           <span className="text-[10px] font-mono text-[#666] bg-[#fafafa] px-1 rounded">float64</span>
-                        </div>
-                      </div>
-                      <div className="flex h-1 w-full mb-1">
-                        <div style={{width: '80%'}} className="bg-[#0070f3]"></div>
-                        <div style={{width: '20%'}} className="bg-[#888888]"></div>
-                      </div>
-                      <div className="flex justify-between text-[10px] text-[#666]"><span>80%</span><span>20%</span></div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentData.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-[#fafafa]">
-                      <td className="font-mono text-right text-[#888]">{idx + 1}</td>
-                      <td>{row.region}</td>
-                      <td>{row.dept}</td>
-                      <td className={`font-mono text-right ${row.salary ? '' : 'text-[#888] italic'}`}>
-                        {row.salary ? row.salary.toLocaleString() : 'NaN'}
-                      </td>
+              {previewLoading ? (
+                <div className="p-8 text-sm text-[#666]">Loading preview…</div>
+              ) : previewError ? (
+                <div className="p-8 text-sm text-danger">{previewError}</div>
+              ) : !data || columns.length === 0 ? (
+                <div className="p-8 text-sm text-[#666]">Select a dataset to preview its latest version.</div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 50 }}>#</th>
+                      {columns.map((col) => (
+                        <th key={col} onClick={() => openDrawer(null, col)}>
+                          <div className="flex justify-between items-center gap-3">
+                            <span className="text-xs font-semibold">{col}</span>
+                            <span className="text-[10px] font-mono text-[#666] bg-[#fafafa] px-1 rounded">{data.dataset_schema[col]}</span>
+                          </div>
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {data.rows.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-[#fafafa]">
+                        <td className="font-mono text-right text-[#888]">{idx + 1}</td>
+                        {row.map((cell, j) => (
+                          <td key={j} className={`font-mono ${cell === null || cell === undefined ? "text-[#888] italic" : ""}`}>
+                            {cell === null || cell === undefined ? "null" : String(cell)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
 
-          {/* Right Drawer */}
-          <div className={`wf-drawer ${drawerOpen ? 'open' : ''}`}>
+          <div className={`wf-drawer ${drawerOpen ? "open" : ""}`}>
             <div className="flex items-center justify-between p-4 border-b border-[#eaeaea]">
-              <div className="font-semibold text-[13px]">
-                {view === 'select' ? 'Select Operation' : view === 'config' ? 'Configure Operation' : view === 'versions' ? 'Transformation Versions' : 'Execution Mode'}
-              </div>
+              <div className="font-semibold text-[13px]">{selectedOperation ? "Configure Operation" : "Select Operation"}</div>
               <button className="text-[#666] hover:text-[#000]" onClick={closeDrawer}>✕</button>
             </div>
 
             <div className="flex-1 overflow-y-auto bg-[#fafafa]">
-              {view === 'versions' && (
-                <div className="p-4">
-                  <div className="space-y-3">
-                    {['v3', 'v2', 'v1'].map(v => (
-                      <div key={v} className={`border rounded-lg p-3 cursor-pointer transition-all ${activeVersion === v ? 'border-black bg-white shadow-sm ring-1 ring-black' : 'border-[#eaeaea] bg-white hover:border-[#999]'}`} onClick={() => setActiveVersion(v)}>
-                         <div className="flex justify-between items-center mb-1">
-                           <span className="font-semibold text-sm flex items-center gap-2"><GitBranch size={14}/> {v} {v === activeVersion && <span className="text-[10px] bg-black text-white px-2 py-0.5 rounded-full">ACTIVE</span>}</span>
-                           <span className="text-[10px] text-[#666]">{v === 'v3' ? '2 hrs ago' : v === 'v2' ? '1 day ago' : '5 days ago'}</span>
-                         </div>
-                         <p className="text-[11px] text-[#666] mb-3">Commit message or auto-generated description for this transform state.</p>
-                         <div className="flex gap-2">
-                           <button className="text-[10px] uppercase font-bold text-[#666] hover:text-black flex items-center gap-1 border border-[#eaeaea] rounded px-2 py-1"><Eye size={12}/> View DAG</button>
-                           <button className="text-[10px] uppercase font-bold text-[#666] hover:text-black flex items-center gap-1 border border-[#eaeaea] rounded px-2 py-1"><Copy size={12}/> Clone</button>
-                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedColumn && view === 'select' && (
-                <div className="p-4 border-b border-[#eaeaea] bg-white">
-                  <div className="text-[11px] uppercase tracking-wider text-[#666] font-semibold mb-3">Target Column</div>
-                  <div className="border border-[#eaeaea] rounded p-3 mb-4 bg-[#fafafa]">
-                    <div className="flex justify-between items-center mb-1">
+              {!selectedOperation && (
+                <div className="p-4 flex flex-col gap-2">
+                  {selectedColumn && (
+                    <div className="border border-[#eaeaea] rounded p-3 mb-2 bg-white">
+                      <div className="text-[10px] uppercase tracking-wider text-[#666] font-semibold mb-1">Target Column</div>
                       <span className="font-mono font-semibold text-sm">{selectedColumn}</span>
-                      <span className="text-[10px] text-[#666]">{columnStats[selectedColumn]?.dtype}</span>
-                    </div>
-                    <div className="text-xs text-[#666]">Missing: {columnStats[selectedColumn]?.missing}</div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-4">
-                    {(() => {
-                      const stats = columnStats[selectedColumn];
-                      if (!stats) return null;
-                      return stats.dtype === 'float64' ? (
-                        <>
-                          <div className="flex flex-col"><span className="text-[10px] text-[#666]">Min</span><span className="text-xs font-mono font-medium">{stats.min}</span></div>
-                          <div className="flex flex-col"><span className="text-[10px] text-[#666]">Max</span><span className="text-xs font-mono font-medium">{stats.max}</span></div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex flex-col"><span className="text-[10px] text-[#666]">Unique</span><span className="text-xs font-mono font-medium">{stats.unique}</span></div>
-                          <div className="flex flex-col"><span className="text-[10px] text-[#666]">Top Mode</span><span className="text-xs font-mono font-medium">{stats.top}</span></div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                  {columnStats[selectedColumn]?.dtype === 'float64' && (
-                    <div>
-                      <div className="flex items-end gap-[2px] h-[60px] border-b border-[#eaeaea] pb-[2px]">
-                        {columnStats[selectedColumn].dist.map((h: number, i: number) => (
-                          <div key={i} className="flex-1 bg-[#999] hover:bg-black transition-colors rounded-t-[2px]" style={{height: `${h}%`}}></div>
-                        ))}
-                      </div>
-                      <div className="flex justify-between text-[9px] font-mono text-[#666] mt-1">
-                        <span>{columnStats[selectedColumn].min}</span><span>{columnStats[selectedColumn].max}</span>
-                      </div>
                     </div>
                   )}
-                </div>
-              )}
-
-              {view === 'select' && (
-                <div className="p-4 flex flex-col gap-2">
-                  <div className="pb-3 mb-1 border-b border-[#eaeaea]">
-                    <input 
-                      type="text" 
-                      placeholder="Search operations..." 
-                      className="w-full px-3 py-2 border border-[#eaeaea] rounded font-sans text-[13px] outline-none focus:border-black shadow-sm"
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                  {operationsDict.filter(op => 
-                    op.title.toLowerCase().includes(searchQuery.toLowerCase()) && 
-                    (!selectedColumn || op.types.includes(columnStats[selectedColumn]?.dtype))
-                  ).map((op, idx) => (
-                    <div key={idx} className="wf-op-card shadow-sm bg-white" onClick={() => openDrawer('config', selectedColumn, op.title)}>
+                  <input type="text" placeholder="Search operations..."
+                    className="w-full px-3 py-2 border border-[#eaeaea] rounded text-[13px] outline-none focus:border-black shadow-sm mb-1"
+                    value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                  {operationsDict.filter(op => op.title.toLowerCase().includes(searchQuery.toLowerCase())).map((op) => (
+                    <div key={op.title} className="wf-op-card shadow-sm bg-white" onClick={() => setSelectedOperation(op.title)}>
                       <div className="font-semibold text-[13px] mb-1">{op.title}</div>
                       <div className="text-xs text-[#666] leading-tight">{op.desc}</div>
                     </div>
@@ -353,57 +307,21 @@ export function DataTransformPage() {
                 </div>
               )}
 
-              {view === 'config' && selectedColumn === 'salary' && !selectedOperation && (
-                <div className="p-5 bg-white h-full border-b border-[#eaeaea]">
-                    <div className="text-[15px] font-semibold mb-4">Column Lineage</div>
-                    <div className="border border-[#eaeaea] rounded p-4 bg-[#fafafa]">
-                      <div className="text-[11px] uppercase tracking-wider text-[#666] font-semibold mb-2">Column</div>
-                      <div className="font-mono font-bold text-sm mb-4">salary_cleaned</div>
-                      
-                      <div className="text-[11px] uppercase tracking-wider text-[#666] font-semibold mb-2">Derived From</div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <ArrowRight size={14} className="text-[#999]" />
-                        <span className="font-mono text-xs bg-white border border-[#eaeaea] px-2 py-1 rounded">salary_raw</span>
-                      </div>
-
-                      <div className="text-[11px] uppercase tracking-wider text-[#666] font-semibold mb-2">Transformations Applied</div>
-                      <ul className="space-y-2 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-[#eaeaea]">
-                        <li className="flex items-center gap-3 relative z-10">
-                          <div className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center text-[10px] font-bold">1</div>
-                          <span className="text-xs font-medium bg-white px-2 py-1 border border-[#eaeaea] rounded shadow-sm">Drop Nulls</span>
-                        </li>
-                        <li className="flex items-center gap-3 relative z-10">
-                          <div className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center text-[10px] font-bold">2</div>
-                          <span className="text-xs font-medium bg-white px-2 py-1 border border-[#eaeaea] rounded shadow-sm">Z-Score Normalize</span>
-                        </li>
-                      </ul>
-                    </div>
-                </div>
-              )}
-
-              {view === 'config' && selectedOperation && (
+              {selectedOperation && (
                 <div className="p-5 flex flex-col gap-4 h-full bg-white">
                   <div className="text-[15px] font-semibold mb-2">{selectedOperation}</div>
-                  
                   <div>
                     <label className="block text-xs font-semibold text-[#666] mb-1.5">Target Column</label>
-                    <select 
-                      className="w-full px-3 py-2 border border-[#eaeaea] rounded font-sans text-[13px] outline-none mb-3 bg-[#fafafa]"
-                      value={selectedColumn || ''}
-                      onChange={e => setSelectedColumn(e.target.value)}
-                    >
+                    <select className="w-full px-3 py-2 border border-[#eaeaea] rounded text-[13px] outline-none mb-3 bg-[#fafafa]"
+                      value={selectedColumn} onChange={e => setSelectedColumn(e.target.value)}>
                       <option value="">-- Apply to entire dataframe --</option>
-                      <option value="region">region (object)</option>
-                      <option value="department">department (object)</option>
-                      <option value="salary">salary (float64)</option>
+                      {columns.map((c) => <option key={c} value={c}>{c} ({data?.dataset_schema[c]})</option>)}
                     </select>
                   </div>
-                  
-                  <div className="flex-1"></div>
-                  
+                  <div className="flex-1" />
                   <div className="flex gap-3 pt-4 border-t border-[#eaeaea]">
-                    <button className="flex-1 py-2 text-sm border border-[#eaeaea] rounded font-medium hover:bg-[#fafafa]" onClick={() => setView('select')}>Back</button>
-                    <button className="flex-1 py-2 text-sm bg-black text-white rounded font-medium hover:bg-[#333]" onClick={applyOperation}>Apply</button>
+                    <button className="flex-1 py-2 text-sm border border-[#eaeaea] rounded font-medium hover:bg-[#fafafa]" onClick={() => setSelectedOperation(null)}>Back</button>
+                    <button className="flex-1 py-2 text-sm bg-black text-white rounded font-medium hover:bg-[#333]" onClick={applyOperation}>Add Step</button>
                   </div>
                 </div>
               )}
@@ -411,114 +329,409 @@ export function DataTransformPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Save & Execution Modal */}
-      {showSaveModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-border animate-in zoom-in-95 duration-200">
-            {!showConfirmModal ? (
-              <>
-                <div className="p-6 border-b border-border">
-                  <h3 className="text-xl font-bold tracking-tight">Save Transformation</h3>
-                  <p className="text-sm text-text-tertiary mt-1">Choose how to save and execute this transformation pipeline.</p>
-                </div>
-                <div className="p-6 space-y-6 bg-surface-2/30">
-                  <div className="space-y-3">
-                    <h4 className="text-[11px] font-black uppercase tracking-widest text-text-tertiary">Save Strategy</h4>
-                    <label className="flex items-center gap-3 p-3 border border-border-subtle rounded-lg cursor-pointer hover:bg-white bg-white shadow-sm ring-1 ring-primary/20">
-                      <input type="radio" name="save_strat" defaultChecked className="accent-primary size-4" />
-                      <div>
-                        <span className="text-sm font-bold block">Save as New Version (Default)</span>
-                        <span className="text-[10px] text-text-tertiary">Safe: creates {activeVersion.replace(/v(\d+)/, (_m,p1)=>`v${parseInt(p1)+1}`)} and leaves {activeVersion} intact.</span>
-                      </div>
-                    </label>
-                    <label className="flex items-center gap-3 p-3 border border-border-subtle rounded-lg cursor-pointer hover:bg-white opacity-70">
-                      <input type="radio" name="save_strat" className="accent-primary size-4" />
-                      <div>
-                        <span className="text-sm font-bold block">Overwrite Current Version</span>
-                        <span className="text-[10px] text-text-tertiary">Dangerous: permanently replaces {activeVersion}.</span>
-                      </div>
-                    </label>
-                  </div>
+// ══════════════════════════════════════════════════════════════════════════════
+// Import-review mode (triggered by a staged jobId handed off from Data Import)
+// ══════════════════════════════════════════════════════════════════════════════
+function ImportReview({ jobId, datasetName }: { jobId: string; datasetName?: string }) {
+  const navigate = useNavigate();
+  const { session } = useAuthContext();
 
-                  <div className="space-y-3 pt-6 border-t border-border-subtle">
-                    <h4 className="text-[11px] font-black uppercase tracking-widest text-text-tertiary">Execution Mode</h4>
-                    <div className="flex gap-4">
-                       <label className={`flex-1 flex flex-col items-center gap-2 p-4 border rounded-xl cursor-pointer text-center transition-all ${runMode === 'incremental' ? 'border-primary bg-primary/5 ring-1 ring-primary text-primary' : 'border-border-subtle bg-white hover:border-border text-text-tertiary hover:text-text'}`}>
-                         <input type="radio" name="run_mode" className="sr-only" checked={runMode==='incremental'} onChange={() => setRunMode('incremental')} />
-                         <Clock size={20} />
-                         <div>
-                          <span className="text-sm font-bold block text-text">Incremental</span>
-                          <span className="text-[10px] uppercase font-bold tracking-widest">Recommended</span>
-                         </div>
-                       </label>
-                       <label className={`flex-1 flex flex-col items-center gap-2 p-4 border rounded-xl cursor-pointer text-center transition-all ${runMode === 'full' ? 'border-primary bg-primary/5 ring-1 ring-primary text-primary' : 'border-border-subtle bg-white hover:border-border text-text-tertiary hover:text-text'}`}>
-                         <input type="radio" name="run_mode" className="sr-only" checked={runMode==='full'} onChange={() => setRunMode('full')} />
-                         <Server size={20} />
-                         <div>
-                          <span className="text-sm font-bold block text-text">Full Recompute</span>
-                          <span className="text-[10px] uppercase font-bold tracking-widest">Resource Intensive</span>
-                         </div>
-                       </label>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-6 border-t border-border flex justify-end gap-3 bg-white">
-                  <button onClick={() => setShowSaveModal(false)} className="btn btn-secondary px-6">Cancel</button>
-                  <button onClick={() => setShowConfirmModal(true)} className="btn btn-primary px-8">Continue to Execute</button>
-                </div>
-              </>
-            ) : (
-              <>
-               <div className="p-6 border-b border-border">
-                  <h3 className="text-xl font-bold tracking-tight">Execution Preview</h3>
-                  <p className="text-sm text-text-tertiary mt-1">Review the partition impact before executing <span className="font-mono text-xs">{runMode.toUpperCase()}</span> run.</p>
-                </div>
-                <div className="p-6 bg-surface-2/30 space-y-6">
-                  
-                  <div className="bg-white rounded-xl p-4 border border-border-subtle">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary mb-3 flex items-center justify-between">
-                      Partitions Detected
-                      <span className="text-[9px] bg-surface-2 px-2 py-1 rounded">Target: sales_data</span>
-                    </p>
-                    <ul className="space-y-2 text-sm font-mono">
-                       {partitionStatus.map((p) => (
-                         <li key={p.id} className="flex items-center gap-2">
-                            {p.icon} {p.id} <span className="text-text-tertiary text-xs ml-auto">({p.status})</span>
-                         </li>
-                       ))}
-                    </ul>
-                  </div>
+  const authHeaders = useCallback(
+    (): Record<string, string> => ({ Authorization: `Bearer ${session?.accessToken}` }),
+    [session],
+  );
 
-                  <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 text-sm font-medium leading-relaxed">
-                    You are about to process:
-                    <ul className="list-disc pl-5 mt-2 space-y-1 mb-4 font-normal text-text-secondary">
-                      <li><strong className="text-text font-bold">1</strong> new partition</li>
-                      <li><strong className="text-text font-bold">1</strong> modified partition</li>
-                      {runMode === 'incremental' ? (
-                        <li><strong className="text-text font-bold">10</strong> unchanged partitions <span className="text-text-tertiary">(will be skipped)</span></li>
-                      ) : (
-                        <li className="text-warning-strong"><strong className="font-bold">10</strong> unchanged partitions <span className="underline decoration-warning">will be recomputed</span></li>
-                      )}
-                    </ul>
-                    <div className="flex items-center justify-between pt-3 border-t border-primary/10">
-                      <span className="text-xs uppercase tracking-widest font-black text-text-tertiary">Est. Compute Cost</span>
-                      <span className={`text-sm font-black tracking-widest uppercase ${runMode === 'incremental' ? 'text-success' : 'text-warning-strong'}`}>
-                        {runMode === 'incremental' ? 'LOW' : 'HIGH'}
-                      </span>
-                    </div>
-                  </div>
+  const [preview, setPreview] = useState<StagedPreview | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [loading, setLoading] = useState(true);
 
-                </div>
-                <div className="p-6 border-t border-border flex justify-end gap-3 bg-white">
-                  <button onClick={() => setShowConfirmModal(false)} className="btn btn-secondary px-6">Back</button>
-                  <button onClick={() => { setShowSaveModal(false); setShowConfirmModal(false); }} className="btn btn-primary px-8 flex items-center gap-2"><Play size={16} fill="currentColor" /> Execute Pipeline</button>
-                </div>
-              </>
-            )}
+  const [steps, setSteps] = useState<TransformStep[]>([]);
+  const [committing, setCommitting] = useState(false);
+  const [progress, setProgress] = useState<string>("");
+  const [commitError, setCommitError] = useState("");
+
+  // Step builder draft
+  const [draftOp, setDraftOp] = useState<OpKind>("drop");
+  const [draftCol, setDraftCol] = useState("");
+  const [draftTo, setDraftTo] = useState("");
+  const [draftCast, setDraftCast] = useState<CastType>("string");
+  const [draftFilterOp, setDraftFilterOp] = useState<FilterOp>("eq");
+  const [draftValue, setDraftValue] = useState("");
+  const [draftStrategy, setDraftStrategy] = useState<FillStrategy>("value");
+
+  // ── Fetch staged preview ────────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError("");
+    fetch(`${API_BASE}/data-ingest/jobs/${jobId}/staged-preview?limit=50`, { headers: authHeaders() })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await readError(res, "Failed to load staged preview"));
+        return res.json() as Promise<StagedPreview>;
+      })
+      .then((p) => { if (!cancelled) setPreview(p); })
+      .catch((e) => { if (!cancelled) setLoadError(e.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [jobId, authHeaders]);
+
+  const columns = preview?.columns ?? [];
+  const diff = preview?.diff && preview.diff.has_diff ? preview.diff : null;
+
+  useEffect(() => {
+    if (!draftCol && columns.length > 0) setDraftCol(columns[0]);
+  }, [columns, draftCol]);
+
+  const filterNeedsValue = !["isnull", "notnull"].includes(draftFilterOp);
+  const fillNeedsValue = draftStrategy === "value";
+
+  function addStep() {
+    if (!draftCol) return;
+    let step: TransformStep | null = null;
+    switch (draftOp) {
+      case "drop":
+        step = { type: "drop", column: draftCol };
+        break;
+      case "rename":
+        if (!draftTo.trim()) return;
+        step = { type: "rename", column: draftCol, to: draftTo.trim() };
+        break;
+      case "cast":
+        step = { type: "cast", column: draftCol, to_type: draftCast };
+        break;
+      case "filter":
+        step = filterNeedsValue
+          ? { type: "filter", column: draftCol, op: draftFilterOp, value: draftValue }
+          : { type: "filter", column: draftCol, op: draftFilterOp };
+        break;
+      case "fillna":
+        step = fillNeedsValue
+          ? { type: "fillna", column: draftCol, strategy: draftStrategy, value: draftValue }
+          : { type: "fillna", column: draftCol, strategy: draftStrategy };
+        break;
+    }
+    if (step) {
+      setSteps((prev) => [...prev, step!]);
+      setDraftTo("");
+      setDraftValue("");
+    }
+  }
+
+  function addMappingStep(suggestedTarget: string, previousName: string) {
+    // Rename the incoming column to the previous-schema name.
+    setSteps((prev) => [...prev, { type: "rename", column: suggestedTarget, to: previousName }]);
+  }
+
+  function removeStep(idx: number) {
+    setSteps((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  // ── Commit + poll ───────────────────────────────────────────────────────────
+  async function saveAndApply() {
+    setCommitting(true);
+    setCommitError("");
+    setProgress("Dispatching pipeline…");
+    try {
+      const res = await fetch(`${API_BASE}/data-ingest/jobs/${jobId}/commit`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ transforms: steps }),
+      });
+      if (!res.ok) throw new Error(await readError(res, "Commit failed"));
+
+      setProgress("Running pipeline…");
+      await new Promise<void>((resolve, reject) => {
+        const poll = setInterval(async () => {
+          try {
+            const r = await fetch(`${API_BASE}/data-ingest/jobs/${jobId}`, { headers: authHeaders() });
+            if (!r.ok) return;
+            const job: JobResponse = await r.json();
+            if (job.status === "SUCCESS") {
+              clearInterval(poll);
+              resolve();
+            } else if (job.status === "FAILED") {
+              clearInterval(poll);
+              reject(new Error(errMessage(job.error_message, "Pipeline failed")));
+            }
+          } catch { /* transient, keep polling */ }
+        }, 2000);
+      });
+
+      navigate("/app/data-import");
+    } catch (e: any) {
+      setCommitError(e.message);
+      setCommitting(false);
+      setProgress("");
+    }
+  }
+
+  return (
+    <div className="flex h-[calc(100vh-5rem)] flex-col overflow-hidden bg-[#fafafa]">
+      <WfStyles />
+
+      <PageHeader
+        title="Review &amp; Transform"
+        subtitle={datasetName ? `Reviewing staged data for “${datasetName}” before committing a new version.` : "Review staged data before committing a new version."}
+        actions={
+          <span className="text-xs text-text-tertiary font-mono px-3 py-1.5 rounded-lg bg-surface-2 border border-subtle">
+            staged job · {jobId.slice(0, 8)}…
+          </span>
+        }
+      />
+
+      <div className="wf-container m-4 mb-0 flex-1">
+        <div className="wf-topbar">
+          <div className="font-semibold text-sm border-r border-[#eaeaea] pr-4 mr-4">DataForge · Import Review</div>
+          <div className="ml-auto flex gap-3 items-center text-xs text-[#666]">
+            <div>Rows: <strong className="text-black font-mono">{preview?.sample_rows.length ?? 0}</strong></div>
+            <div>Cols: <strong className="text-black font-mono">{columns.length}</strong></div>
+            <div>Steps: <strong className="text-black font-mono">{steps.length}</strong></div>
+            <button
+              onClick={saveAndApply}
+              disabled={committing || loading || !!loadError}
+              className="bg-black text-white px-3 py-1.5 rounded font-medium ml-2 hover:bg-[#333] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {committing ? "Applying…" : "Save & Apply"}
+            </button>
           </div>
         </div>
-      )}
+
+        <div className="flex flex-1 overflow-hidden relative">
+          {/* Sidebar: diff + transform plan builder */}
+          <div className="wf-sidebar" style={{ width: 300, minWidth: 300 }}>
+            <div className="flex-1 overflow-y-auto p-3 space-y-4">
+              {diff && (
+                <div className="border border-[#eaeaea] rounded bg-white p-3 space-y-3">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-[#666]">Schema changed</div>
+                  {diff.added_columns.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-semibold text-green-700 mb-1">Added</div>
+                      <div className="flex flex-wrap gap-1">
+                        {diff.added_columns.map((c) => <span key={c} className="text-[10px] font-mono bg-green-50 text-green-700 border border-green-200 rounded px-1.5 py-0.5">{c}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  {diff.missing_columns.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-semibold text-red-700 mb-1">Missing</div>
+                      <div className="flex flex-wrap gap-1">
+                        {diff.missing_columns.map((c) => <span key={c} className="text-[10px] font-mono bg-red-50 text-red-700 border border-red-200 rounded px-1.5 py-0.5">{c}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  {diff.type_changes.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-semibold text-amber-700 mb-1">Type changes</div>
+                      {diff.type_changes.map((c) => (
+                        <div key={c.column} className="text-[10px] font-mono"><b>{c.column}</b> {c.old_type} → {c.new_type}</div>
+                      ))}
+                    </div>
+                  )}
+                  {diff.suggested_mappings.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-semibold text-[#666] mb-1">Suggested mappings</div>
+                      <div className="space-y-1.5">
+                        {diff.suggested_mappings.map((m) => (
+                          <button
+                            key={`${m.column}-${m.suggested_target}`}
+                            onClick={() => addMappingStep(m.suggested_target, m.column)}
+                            className="w-full text-left text-[11px] font-mono border border-[#eaeaea] rounded px-2 py-1.5 hover:border-black hover:bg-[#fafafa] transition-colors"
+                            title="Add a rename step mapping the incoming column to the previous name"
+                          >
+                            <span className="text-[#888]">rename</span> {m.suggested_target} → {m.column}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Transform plan */}
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[#666] mb-2">Transform plan</div>
+                {steps.length === 0 ? (
+                  <div className="text-[11px] text-[#888] italic px-1">No steps. Data commits as-is.</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {steps.map((s, idx) => (
+                      <div key={idx} className="flex items-center gap-2 border border-[#eaeaea] rounded bg-white px-2 py-1.5">
+                        <span className="wf-step-icon">{idx + 1}</span>
+                        <span className="flex-1 min-w-0 text-[11px] font-mono truncate">{stepLabel(s)}</span>
+                        <button onClick={() => removeStep(idx)} className="text-[#888] hover:text-red-600 text-xs leading-none">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Step builder */}
+            <div className="p-3 border-t border-[#eaeaea] bg-white space-y-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[#666]">Add step</div>
+              <select
+                className="w-full px-2 py-1.5 border border-[#eaeaea] rounded text-[12px] outline-none"
+                value={draftOp}
+                onChange={(e) => setDraftOp(e.target.value as OpKind)}
+              >
+                {OP_KIND.map((k) => <option key={k} value={k}>{OP_LABEL[k]}</option>)}
+              </select>
+
+              <select
+                className="w-full px-2 py-1.5 border border-[#eaeaea] rounded text-[12px] outline-none font-mono"
+                value={draftCol}
+                onChange={(e) => setDraftCol(e.target.value)}
+              >
+                {columns.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+
+              {draftOp === "rename" && (
+                <input
+                  className="w-full px-2 py-1.5 border border-[#eaeaea] rounded text-[12px] outline-none font-mono"
+                  placeholder="new name"
+                  value={draftTo}
+                  onChange={(e) => setDraftTo(e.target.value)}
+                />
+              )}
+
+              {draftOp === "cast" && (
+                <select
+                  className="w-full px-2 py-1.5 border border-[#eaeaea] rounded text-[12px] outline-none"
+                  value={draftCast}
+                  onChange={(e) => setDraftCast(e.target.value as CastType)}
+                >
+                  {CAST_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              )}
+
+              {draftOp === "filter" && (
+                <>
+                  <select
+                    className="w-full px-2 py-1.5 border border-[#eaeaea] rounded text-[12px] outline-none"
+                    value={draftFilterOp}
+                    onChange={(e) => setDraftFilterOp(e.target.value as FilterOp)}
+                  >
+                    {FILTER_OPS.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                  {filterNeedsValue && (
+                    <input
+                      className="w-full px-2 py-1.5 border border-[#eaeaea] rounded text-[12px] outline-none font-mono"
+                      placeholder="value"
+                      value={draftValue}
+                      onChange={(e) => setDraftValue(e.target.value)}
+                    />
+                  )}
+                </>
+              )}
+
+              {draftOp === "fillna" && (
+                <>
+                  <select
+                    className="w-full px-2 py-1.5 border border-[#eaeaea] rounded text-[12px] outline-none"
+                    value={draftStrategy}
+                    onChange={(e) => setDraftStrategy(e.target.value as FillStrategy)}
+                  >
+                    {FILL_STRATEGIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  {fillNeedsValue && (
+                    <input
+                      className="w-full px-2 py-1.5 border border-[#eaeaea] rounded text-[12px] outline-none font-mono"
+                      placeholder="fill value"
+                      value={draftValue}
+                      onChange={(e) => setDraftValue(e.target.value)}
+                    />
+                  )}
+                </>
+              )}
+
+              <button
+                onClick={addStep}
+                disabled={columns.length === 0}
+                className="w-full text-[12px] bg-black text-white rounded px-3 py-2 font-medium hover:bg-[#333] disabled:opacity-40"
+              >
+                Add to plan
+              </button>
+            </div>
+          </div>
+
+          {/* Preview table */}
+          <div className="flex-1 flex flex-col overflow-hidden bg-white">
+            {commitError && (
+              <div className="px-4 py-2 text-[12px] text-red-700 bg-red-50 border-b border-red-200 font-mono">{commitError}</div>
+            )}
+            {committing && (
+              <div className="px-4 py-2 text-[12px] text-[#666] bg-[#fafafa] border-b border-[#eaeaea]">{progress}</div>
+            )}
+            <div className="wf-table-container flex-1 overflow-auto">
+              {loading ? (
+                <div className="p-8 text-sm text-[#666]">Loading staged preview…</div>
+              ) : loadError ? (
+                <div className="p-8 text-sm text-danger">{loadError}</div>
+              ) : !preview || columns.length === 0 ? (
+                <div className="p-8 text-sm text-[#666]">No staged data to preview.</div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 50 }}>#</th>
+                      {columns.map((col) => (
+                        <th key={col}>
+                          <div className="flex justify-between items-center gap-3">
+                            <span className="text-xs font-semibold">{col}</span>
+                            <span className="text-[10px] font-mono text-[#666] bg-[#fafafa] px-1 rounded">{preview.dataset_schema[col]}</span>
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.sample_rows.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-[#fafafa]">
+                        <td className="font-mono text-right text-[#888]">{idx + 1}</td>
+                        {row.map((cell, j) => (
+                          <td key={j} className={`font-mono ${cell === null || cell === undefined ? "text-[#888] italic" : ""}`}>
+                            {cell === null || cell === undefined ? "null" : String(cell)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  );
+}
+
+// Shared DataForge styling (extracted so both modes render identically).
+function WfStyles() {
+  return (
+    <style dangerouslySetInnerHTML={{ __html: `
+      .wf-container { height: calc(100vh - 120px); border: 1px solid #eaeaea; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; position: relative; background: #fff; }
+      .wf-topbar { display: flex; align-items: center; padding: 0 16px; height: 52px; border-bottom: 1px solid #eaeaea; background: #fff; flex-shrink: 0; }
+      .wf-sidebar { flex-shrink: 0; border-right: 1px solid #eaeaea; display: flex; flex-direction: column; background: #fafafa; z-index: 2; transition: width .3s ease, min-width .3s ease; width: 220px; min-width: 220px; }
+      .wf-sidebar.collapsed { width: 0; min-width: 0; border-right: none; overflow: hidden; opacity: 0; pointer-events: none; }
+      .wf-step-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #eaeaea; cursor: pointer; transition: background .2s; }
+      .wf-step-item:hover { background: #fff; }
+      .wf-step-item.active { background: #fff; box-shadow: inset 2px 0 0 #000; }
+      .wf-step-icon { width: 20px; height: 20px; border-radius: 4px; background: #eaeaea; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; flex-shrink: 0; }
+      .wf-step-item.active .wf-step-icon { background: #000; color: #fff; }
+      .wf-table-container { overflow: auto; background: #fff; }
+      .wf-table-container table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; }
+      .wf-table-container th { position: sticky; top: 0; background: #fff; box-shadow: 0 1px 0 #eaeaea; z-index: 2; padding: 12px 16px; border-right: 1px solid #eaeaea; cursor: pointer; white-space: nowrap; }
+      .wf-table-container th:hover { background: #fafafa; }
+      .wf-table-container td { padding: 10px 16px; font-size: 13px; border-right: 1px solid #eaeaea; border-bottom: 1px solid #eaeaea; white-space: nowrap; }
+      .wf-op-card { padding: 12px; border: 1px solid #eaeaea; border-radius: 6px; cursor: pointer; margin-bottom: 8px; }
+      .wf-op-card:hover { border-color: #000; }
+      .wf-drawer { position: absolute; top: 52px; right: -320px; width: 320px; bottom: 0; background: #fff; border-left: 1px solid #eaeaea; transition: right .3s ease; display: flex; flex-direction: column; z-index: 20; box-shadow: -4px 0 12px rgba(0,0,0,0.05); }
+      .wf-drawer.open { right: 0; }
+    `}} />
   );
 }
