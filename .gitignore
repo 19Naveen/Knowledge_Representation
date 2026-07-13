@@ -22,3 +22,5 @@ Documentation/
 *.swp
 dist/
 .DS_Store
+.superpowers/
+.claude/
